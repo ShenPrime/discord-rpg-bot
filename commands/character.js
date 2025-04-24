@@ -46,7 +46,7 @@ module.exports = {
         if (!character.stats) {
           character.stats = { strength: 2, defense: 2, agility: 2, luck: 2 };
         }
-        function randStat() { return Math.floor(Math.random() * 5) + 1; }
+        function randStat() { return Math.floor(Math.random() * 2) + 1; }
         const strUp = randStat();
         const defUp = randStat();
         const agiUp = randStat();
@@ -64,28 +64,18 @@ Stats gained: STR +${strUp}, DEF +${defUp}, AGI +${agiUp}, LUCK +${luckUp}`,
       }
 
       // Calculate equipment bonuses
-      const ITEM_EFFECTS = {
-        'Rusty Sword': { slot: 'weapon', stats: { strength: 1 } },
-        'Axe': { slot: 'weapon', stats: { strength: 2 } },
-        'Dagger': { slot: 'weapon', stats: { agility: 2 } },
-        'Bow': { slot: 'weapon', stats: { agility: 3 } },
-        'Flaming Sword': { slot: 'weapon', stats: { strength: 5, luck: 1 } },
-        'Excalibur': { slot: 'weapon', stats: { strength: 10, luck: 3 } },
-        'Leather Armor': { slot: 'armor', stats: { defense: 1 } },
-        'Chainmail': { slot: 'armor', stats: { defense: 3 } },
-        'Shield': { slot: 'armor', stats: { defense: 2 } },
-        'Dragon Scale Armor': { slot: 'armor', stats: { defense: 7, luck: 2 } },
-        'Cloak of Invisibility': { slot: 'armor', stats: { agility: 5, luck: 5 } }
-      };
+      // Use lootTable from loot.js for equipment stats
+      const { lootTable } = require('./loot');
       const baseStats = character.stats || { strength: 2, defense: 2, agility: 2, luck: 2 };
       let eqStats = { strength: 0, defense: 0, agility: 0, luck: 0 };
       let eqList = [];
       if (character.equipment) {
-        for (const [slot, item] of Object.entries(character.equipment)) {
-          const eff = ITEM_EFFECTS[item];
-          if (eff && eff.stats) {
-            eqList.push(`${slot}: ${item}`);
-            for (const [stat, val] of Object.entries(eff.stats)) {
+        for (const [slot, itemName] of Object.entries(character.equipment)) {
+          // Find the item in lootTable
+          const lootItem = lootTable.find(i => i.name === itemName && i.stats);
+          if (lootItem && lootItem.stats) {
+            eqList.push(`${slot}: ${itemName}`);
+            for (const [stat, val] of Object.entries(lootItem.stats)) {
               eqStats[stat] = (eqStats[stat] || 0) + val;
             }
           }
