@@ -16,24 +16,13 @@ function saveCharacters(characters) {
   fs.writeFileSync(CHARACTERS_FILE, JSON.stringify(characters, null, 2));
 }
 
-// Define usable item effects (stat-boosting potions only)
-const USABLE_ITEMS = {
-  'Potion of Strength': { stat: 'strength', message: 'Your strength increased!' },
-  'Potion of Agility': { stat: 'agility', message: 'Your agility increased!' },
-  'Potion of Defense': { stat: 'defense', message: 'Your defense increased!' },
-  'Potion of Fortune': { stat: 'luck', message: 'Your luck increased!' },
-  'Resurrection Elixir': { stat: 'revive', message: 'You are revived from defeat!' }
-};
+// Usable items will be pulled from the lootTable based on the presence of a 'uses' property
+const { lootTable } = require('./loot');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('use')
-    .setDescription('Use a consumable item from your inventory.')
-    .addStringOption(option =>
-      option.setName('item')
-        .setDescription('The name of the item to use (case-sensitive)')
-        .setRequired(true)
-    ),
+    .setDescription('Use a consumable item from your inventory.'),
   async execute(interaction) {
     const userId = interaction.user.id;
     let characters = loadCharacters();
@@ -42,25 +31,93 @@ module.exports = {
       await interaction.reply({ content: 'You do not have a character yet. Use /character to create one!', ephemeral: true });
       return;
     }
-    const itemName = interaction.options.getString('item');
-    // Find the potion in inventory (support object form for uses)
+    if (!Array.isArray(character.inventory) || character.inventory.length === 0) {
+      await interaction.reply({ content: 'Your inventory is empty.', ephemeral: true });
+      return;
+    }
+    // Find usable items (must be in lootTable, have 'uses', and be in inventory)
+    const usableLoot = lootTable.filter(i => i.uses);
+    // Get unique usable items from inventory
+    const usableInventory = character.inventory
+      .map(item => typeof item === 'string' ? item : item.name)
+      .filter((itemName, idx, arr) => arr.indexOf(itemName) === idx && usableLoot.find(l => l.name === itemName));
+    if (usableInventory.length === 0) {
+      await interaction.reply({ content: 'You have no usable items.', ephemeral: true });
+      return;
+    }
+    // Build select menu options
+    const options = usableInventory.map(itemName => {
+      const lootItem = usableLoot.find(l => l.name === itemName);
+      let desc = '';
+      if (lootItem) {
+        if (lootItem.stat && lootItem.boost) desc = `+${lootItem.boost} ${lootItem.stat}`;
+        if (lootItem.stat === 'revive') desc = 'Revives from defeat';
+      }
+      return {
+        label: itemName,
+        value: itemName,
+        description: desc || undefined
+      };
+    });
+    await interaction.reply({
+      content: 'Select the item you want to use:',
+      components: [
+        {
+          type: 1,
+          components: [
+            {
+              type: 3,
+              custom_id: 'use_select',
+              min_values: 1,
+              max_values: 1,
+              options
+            }
+          ]
+        }
+      ],
+      ephemeral: true
+    });
+  },
+
+  async handleSelect(interaction) {
+    const userId = interaction.user.id;
+    let characters = loadCharacters();
+    let character = characters[userId];
+    if (!character) {
+      await interaction.reply({ content: 'You do not have a character yet. Use /character to create one!', ephemeral: true });
+      return;
+    }
+    if (!Array.isArray(character.inventory) || character.inventory.length === 0) {
+      await interaction.reply({ content: 'Your inventory is empty.', ephemeral: true });
+      return;
+    }
+    const itemName = interaction.values[0];
+    // Find the item in inventory
     const invIdx = character.inventory.findIndex(item => (typeof item === 'string' ? item : item.name) === itemName);
     if (invIdx === -1) {
       await interaction.reply({ content: `You do not have "${itemName}" in your inventory.`, ephemeral: true });
       return;
     }
     let invItem = character.inventory[invIdx];
-    // Potions are now objects with uses, stat, boost, rarity
-    const effect = USABLE_ITEMS[itemName];
-    if (!effect) {
+    // Look up usable item in lootTable (must have 'uses' property)
+    const lootItem = lootTable.find(i => i.name === itemName && i.uses);
+    if (!lootItem) {
       await interaction.reply({ content: `You cannot use "${itemName}".`, ephemeral: true });
       return;
     }
-    // Determine uses and boost
-    let uses = (typeof invItem === 'object' && invItem.uses) ? invItem.uses : 1;
-    let stat = (typeof invItem === 'object' && invItem.stat) ? invItem.stat : effect.stat;
-    let boost = (typeof invItem === 'object' && invItem.boost) ? invItem.boost : 1;
-    let rarity = (typeof invItem === 'object' && invItem.rarity) ? invItem.rarity : 'common';
+    // Determine uses and boost from inventory (object form) or lootTable fallback
+    let uses = (typeof invItem === 'object' && invItem.uses) ? invItem.uses : lootItem.uses;
+    let stat = (typeof invItem === 'object' && invItem.stat) ? invItem.stat : lootItem.stat;
+    let boost = (typeof invItem === 'object' && invItem.boost) ? invItem.boost : lootItem.boost;
+    let rarity = (typeof invItem === 'object' && invItem.rarity) ? invItem.rarity : lootItem.rarity;
+    let message = '';
+    // Set message for stat boost or revive
+    if (stat === 'revive') {
+      message = 'You are revived from defeat!';
+    } else {
+      // Default message if none in lootTable
+      message = lootItem.message || `Your ${stat} increased!`;
+    }
     // Apply effect
     if (stat && stat !== 'revive') {
       if (!character.stats) character.stats = { strength: 2, defense: 2, agility: 2, luck: 2 };
@@ -68,9 +125,9 @@ module.exports = {
     }
     let reply = '';
     if (stat === 'revive') {
-      reply = `You used **${itemName}** and ${effect.message}`;
+      reply = `You used **${itemName}** and ${message}`;
     } else {
-      reply = `You used **${itemName}** and ${effect.message} (+${boost} ${stat.charAt(0).toUpperCase() + stat.slice(1)})`;
+      reply = `You used **${itemName}** and ${message} (+${boost} ${stat.charAt(0).toUpperCase() + stat.slice(1)})`;
     }
     // Decrement uses
     if (uses > 1) {
@@ -83,6 +140,6 @@ module.exports = {
       character.inventory.splice(invIdx, 1);
     }
     saveCharacters(characters);
-    await interaction.reply({ content: reply, ephemeral: true });
+    await interaction.update({ content: reply, components: [], ephemeral: true });
   }
 };
