@@ -23,8 +23,8 @@ module.exports = {
 
   async autocomplete(interaction) {
     const userId = interaction.user.id;
-    let characters = loadCharacters();
-    let character = characters[userId];
+    
+    let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
       await interaction.respond([]);
       return;
@@ -67,8 +67,8 @@ module.exports = {
 
   async execute(interaction) {
     const userId = interaction.user.id;
-    let characters = loadCharacters();
-    let character = characters[userId];
+    
+    let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
       await interaction.reply({ content: 'You have no inventory to use from!', ephemeral: true });
       return;

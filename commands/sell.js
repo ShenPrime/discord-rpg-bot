@@ -37,8 +37,8 @@ module.exports = {
     }
     // Show items in the selected category
     const userId = interaction.user.id;
-    let characters = loadCharacters();
-    let character = characters[userId];
+    
+    let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
       await interaction.reply({ content: 'You have no inventory to sell from!', ephemeral: true });
       return;
@@ -86,8 +86,8 @@ module.exports = {
   async handleSelect(interaction) {
     const paginateSelectMenu = require('../paginateSelectMenu');
     const userId = interaction.user.id;
-    let characters = loadCharacters();
-    let character = characters[userId];
+    
+    let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
       await interaction.reply({ content: 'You have no inventory to sell from!', ephemeral: true });
       return;

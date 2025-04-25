@@ -1,7 +1,4 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
-const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
 
 // Loot table extracted from explore.js/fight.js for shop
 // Character file helpers
@@ -35,8 +32,8 @@ module.exports = {
     const paginateSelectMenu = require('../paginateSelectMenu');
     const category = interaction.options.getString('category');
     const userId = interaction.user.id;
-    let characters = loadCharacters();
-    let character = characters[userId];
+    
+    let character = await getCharacter(userId);
     // Gold handling: sum both 'Gold' (with count) and 'X Gold' (with amount or name)
     let gold = 0;
     if (character && Array.isArray(character.inventory)) {
@@ -134,8 +131,8 @@ module.exports = {
       return;
     }
     const userId = interaction.user.id;
-    let characters = loadCharacters();
-    let character = characters[userId];
+    
+    let character = await getCharacter(userId);
     let gold = 0;
     let goldIdx = -1;
     if (character && Array.isArray(character.inventory)) {
