@@ -30,14 +30,14 @@ module.exports = {
         if (effect.stat === 'luck') luck += effect.boost;
       }
     }
-    // Win chance: 5% base + 0.25% per STR + 0.3% per level, soft capped with tanh (max ~80%)
-    const rawChance = 0.05 + (str * 0.0025) + (level * 0.003);
-    const winChance = 0.8 * Math.tanh(rawChance / 0.8);
-    // Draw chance: 10% + 1% per DEF (max 40%)
-    const drawChance = Math.min(0.10 + def * 0.01, 0.4);
-    // Crit chance: 0.4% per LUCK + 0.5% per level, soft capped with tanh (max ~30%)
-    const critRaw = (luck * 0.004) + (level * 0.005);
-    const critChance = 0.3 * Math.tanh(critRaw / 0.3);
+    // Win chance: 10% base + 0.7% per STR + 1.5% per level, soft capped with tanh (max ~90%)
+    const rawChance = 0.10 + (str * 0.007) + (level * 0.015);
+    const winChance = 0.9 * Math.tanh(rawChance / 0.9);
+    // Draw chance: 15% base + 1.5% per DEF (max 45%)
+    const drawChance = Math.min(0.15 + def * 0.015, 0.45);
+    // Crit chance: 1% per LUCK + 1% per level, soft capped with tanh (max ~40%)
+    const critRaw = (luck * 0.01) + (level * 0.01);
+    const critChance = 0.4 * Math.tanh(critRaw / 0.4);
     const roll = Math.random();
     let outcome, reason, xpGained = 0, loot = null, lootMsg = '', levelUpMsg = '';
     // Use centralized loot table
