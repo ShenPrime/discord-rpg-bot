@@ -10,7 +10,7 @@ module.exports = {
     // Load user character
     const userId = interaction.user.id;
     // Use same helpers as inventory.js
-    const { loadCharacters, saveCharacters } = require('../characterUtils');
+    const { loadCharacters, saveCharacters, getXpForNextLevel, checkLevelUp } = require('../characterUtils');
     let characters = loadCharacters();
     let character = characters[userId];
     if (!character) {
@@ -22,27 +22,7 @@ module.exports = {
     // Give XP and handle level up
     const xpGained = Math.floor(Math.random() * 11) + 5; // 5-15 XP
     character.xp = (character.xp || 0) + xpGained;
-    let leveledUp = false;
-    let levelUpMsg = '';
-    while (character.xp >= 100 * (character.level || 1)) {
-      character.xp -= 100 * (character.level || 1);
-      character.level = (character.level || 1) + 1;
-      // Stat increases on level up
-      if (!character.stats) {
-        character.stats = { strength: 2, defense: 2, agility: 2, luck: 2 };
-      }
-      function randStat() { return Math.floor(Math.random() * 2) + 1; }
-      const strUp = randStat();
-      const defUp = randStat();
-      const agiUp = randStat();
-      const luckUp = randStat();
-      character.stats.strength += strUp;
-      character.stats.defense += defUp;
-      character.stats.agility += agiUp;
-      character.stats.luck += luckUp;
-      leveledUp = true;
-      levelUpMsg += `\n🎉 You leveled up! You are now level ${character.level}!\nStats gained: STR +${strUp}, DEF +${defUp}, AGI +${agiUp}, LUCK +${luckUp}`;
-    }
+    const { leveledUp, levelUpMsg } = checkLevelUp(character);
     // Use centralized loot table
     const { exploreTable } = require('./loot');
     // Helper: filter loot by type
@@ -100,7 +80,7 @@ module.exports = {
     characters[userId] = character;
     saveCharacters(characters);
     let reply = `You explore...\nYou gain ${xpGained} XP!`;
-    reply += `\nLevel: ${character.level || 1} | XP: ${character.xp} / ${100 * (character.level || 1)}`;
+    reply += `\nLevel: ${character.level || 1} | XP: ${character.xp} / ${getXpForNextLevel(character.level || 1)}`;
     if (leveledUp) reply += levelUpMsg;
     if (foundItem) {
       reply += `\nYou found: **${foundItem}**! (Rarity: ${foundItemRarity}) It has been added to your inventory.`;

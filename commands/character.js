@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const { getXpForNextLevel, checkLevelUp, getClassForLevel, loadCharacters, saveCharacters } = require('../characterUtils');
 
 const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
 
@@ -53,30 +54,14 @@ module.exports = {
       // Level and XP display
       const xp = character.xp || 0;
       const level = character.level || 1;
-      const xpForNext = 100 * level;
+      const xpForNext = getXpForNextLevel(level);
 
-      // Level up if necessary
-      if (xp >= xpForNext) {
-        character.level = level + 1;
-        character.xp = xp - xpForNext;
-        // Level up stats by random 1-5
-        if (!character.stats) {
-          character.stats = { strength: 2, defense: 2, luck: 2 };
-        }
-        // Update class based on level
-        character.class = getClassForLevel(character.level);
-        // Level up stats by random 1-5
-        function randStat() { return Math.floor(Math.random() * 2) + 1; }
-        const strUp = randStat();
-        const defUp = randStat();
-        const luckUp = randStat();
-        character.stats.strength += strUp;
-        character.stats.defense += defUp;
-        character.stats.luck += luckUp;
+      // Level up if necessary (may level up multiple times)
+      const { leveledUp, levelUpMsg } = checkLevelUp(character);
+      if (leveledUp) {
         saveCharacters(characters);
         await interaction.reply({
-          content: `You leveled up! You are now level ${character.level}. Your new class is ${character.class}.
-Stats gained: STR +${strUp}, DEF +${defUp}, LUCK +${luckUp}`,
+          content: levelUpMsg,
           ephemeral: true
         });
       }
@@ -170,7 +155,7 @@ Stats gained: STR +${strUp}, DEF +${defUp}, LUCK +${luckUp}`,
           description:
             `${userMention}\n\n` +
             `**Level:** ${character.level}\n` +
-            `**XP:** ${character.xp || 0} / ${100 * (character.level || 1)}\n\n` +
+            `**XP:** ${character.xp || 0} / ${characterUtils.getXpForNextLevel(character.level || 1)}\n\n` +
             `__Base Stats:__\n${statLines}\n` +
             `__Total Stats:__\n${totalStatLines}` +
             (eqList.length ? `\n\n**Equipment:**\n${eqList.join(' \n')}` : '') +
@@ -242,7 +227,7 @@ Stats gained: STR +${strUp}, DEF +${defUp}, LUCK +${luckUp}`,
           description:
             `${userMention}\n\n` +
             `**Level:** ${character.level}\n` +
-            `**XP:** ${character.xp || 0} / ${100 * (character.level || 1)}\n\n` +
+            `**XP:** ${character.xp || 0} / ${getXpForNextLevel(character.level || 1)}\n\n` +
             statLines,
           color: 0x3498db,
           footer: { text: 'Your RPG Character Sheet' }
@@ -253,20 +238,4 @@ Stats gained: STR +${strUp}, DEF +${defUp}, LUCK +${luckUp}`,
   },
 };
 
-// Helper: assign class name based on level
-function getClassForLevel(level) {
-  if (level >= 95) return 'Cosmic Supreme';
-  if (level >= 90) return 'Supreme Celestial';
-  if (level >= 85) return 'Supreme';
-  if (level >= 80) return 'Diety';
-  if (level >= 75) return 'Divine Avatar';
-  if (level >= 65) return 'Transcendent';
-  if (level >= 55) return 'Divine Hero';
-  if (level >= 50) return 'Mythic Champion';
-  if (level >= 45) return 'Legendary Hero';
-  if (level >= 35) return 'Master Knight';
-  if (level >= 25) return 'Elite Warrior';
-  if (level >= 15) return 'Veteran';
-  if (level >= 10) return 'Warrior';
-  return 'Adventurer';
-}
+
