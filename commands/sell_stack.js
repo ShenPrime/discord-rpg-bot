@@ -1,20 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
-const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
-
-function loadCharacters() {
-  if (!fs.existsSync(CHARACTERS_FILE)) return {};
-  try {
-    const data = fs.readFileSync(CHARACTERS_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (e) {
-    return {};
-  }
-}
-function saveCharacters(characters) {
-  fs.writeFileSync(CHARACTERS_FILE, JSON.stringify(characters, null, 2));
-}
+const { getCharacter, saveCharacter } = require('../characterModel');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -34,8 +19,8 @@ module.exports = {
 
   async autocomplete(interaction) {
     const userId = interaction.user.id;
-    let characters = loadCharacters();
-    let character = characters[userId];
+    
+    let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
       await interaction.respond([]);
       return;
@@ -84,8 +69,8 @@ module.exports = {
 
   async execute(interaction) {
     const userId = interaction.user.id;
-    let characters = loadCharacters();
-    let character = characters[userId];
+    
+    let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
       await interaction.reply({ content: 'You have no inventory to sell from!', ephemeral: true });
       return;
@@ -121,8 +106,7 @@ module.exports = {
     // Add gold
     const addGoldToInventory = require('../addGoldToInventory');
     addGoldToInventory(character.inventory, goldEarned);
-    characters[userId] = character;
-    saveCharacters(characters);
+    await saveCharacter(userId, character);
     await interaction.reply({
       content: `✅ Sold **${name}** x${quantity} for ${goldEarned} Gold!`,
       ephemeral: true

@@ -1,30 +1,26 @@
 const { SlashCommandBuilder } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
-const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
+const { getAllCharacters } = require('../characterModel');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('exo_leaderboard')
     .setDescription('Show the top 10 players by level.'),
   async execute(interaction) {
-    // Load all characters
+    // Load all characters from MongoDB
     let characters;
     try {
-      characters = JSON.parse(fs.readFileSync(CHARACTERS_FILE, 'utf-8'));
+      characters = await getAllCharacters();
     } catch (e) {
       await interaction.reply({ content: 'Could not load character data.', ephemeral: true });
       return;
     }
-    // Get all players as array
-    const entries = Object.entries(characters).map(([id, c]) => ({ id, ...c }));
     // Sort by level (desc), then XP (desc)
-    entries.sort((a, b) => {
+    characters.sort((a, b) => {
       if ((b.level || 0) !== (a.level || 0)) return (b.level || 0) - (a.level || 0);
       return (b.xp || 0) - (a.xp || 0);
     });
     // Top 10
-    const top = entries.slice(0, 10);
+    const top = characters.slice(0, 10);
     // Fancy formatting: emojis, columns, and embed
     const rankEmojis = [
       '🥇', '🥈', '🥉', '🏅', '🏅', '🏅', '🏅', '🏅', '🏅', '🏅'
