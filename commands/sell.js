@@ -1,5 +1,7 @@
-const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const multiSellSessions = new Map(); // userId -> { items, timestamp }
+const MULTI_SELL_TTL = 5 * 60 * 1000; // 5 minutes
 
+const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
 const { getCharacter, saveCharacter } = require('../characterModel');
 
@@ -104,25 +106,41 @@ module.exports = {
         return;
       }
 
-      if (stackables.length === 1 && singles.length === 0) {
+      // Multi-stackable modal: up to 5 stackable items
+      if (stackables.length > 0 && stackables.length <= 5 && singles.length === 0) {
         // Exactly one stackable item selected: show modal for quantity
-        const item = stackables[0];
-        // Use encodeURIComponent to safely encode name (and rarity if needed) in modal customId
-        const encodedName = encodeURIComponent(item.name);
-        const encodedRarity = encodeURIComponent(item.rarity || '');
+        // Multi-stackable: build modal for up to 5 items
         const delimiter = '|||';
+        const encodedItems = stackables.map(item => encodeURIComponent(item.name) + delimiter + encodeURIComponent(item.rarity || '')).join('::');
+        // Store stackable items in memory for this user
+        // console.log('[SELL] Setting session for', interaction.user.id, stackables);
+        multiSellSessions.set(interaction.user.id, {
+          items: stackables,
+          timestamp: Date.now()
+        });
+        // Schedule cleanup
+        setTimeout(() => {
+          const session = multiSellSessions.get(interaction.user.id);
+          if (session && Date.now() - session.timestamp > MULTI_SELL_TTL) {
+            multiSellSessions.delete(interaction.user.id);
+          }
+        }, MULTI_SELL_TTL + 1000);
         const modal = new ModalBuilder()
-          .setCustomId(`sell_quantity${delimiter}${encodedName}${delimiter}${encodedRarity}`)
-          .setTitle(`Sell ${item.name}`);
-        const qtyInput = new TextInputBuilder()
-          .setCustomId('quantity')
-          .setLabel(`How many to sell? (1-${item.count})`)
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-          .setPlaceholder('Enter quantity');
-        modal.addComponents(new ActionRowBuilder().addComponents(qtyInput));
+          .setCustomId('sell_multi')
+          .setTitle('Sell Multiple Items');
+        const actionRows = stackables.map((item, idx) => {
+          const qtyInput = new TextInputBuilder()
+            .setCustomId(`qty_${idx}`)
+            .setLabel(`${item.name} (max ${item.count})`)
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+            .setPlaceholder('Enter quantity');
+          return new ActionRowBuilder().addComponents(qtyInput);
+        });
+        actionRows.forEach(row => modal.addComponents(row));
+        // console.log('DEBUG MODAL STRUCTURE:', JSON.stringify(modal.toJSON(), null, 2));
         await interaction.showModal(modal);
-        return;
+        return; 
       } else if (stackables.length === 0 && singles.length > 0) {
         // All single-count items: sell all at once
         const addGoldToInventory = require('../addGoldToInventory');
@@ -162,6 +180,110 @@ You cannot mix stackables and singles or select multiple stackables.`,
       }
     }
     // Handle modal submit for selling stackable item
+    // In-memory store for pending multi-sell sessions
+// Multi-stackable modal submit
+    if (interaction.isModalSubmit && interaction.customId === 'sell_multi') {
+      try {
+        // Debug modal field dump removed for production
+        // let fieldArr = [];
+        // if (Array.isArray(interaction.fields.fields)) {
+        //   fieldArr = interaction.fields.fields;
+        // } else if (Array.isArray(interaction.fields)) {
+        // Look up stackable items from in-memory store
+        const session = multiSellSessions.get(interaction.user.id);
+        if (!session || !session.items) {
+          await interaction.reply({ content: 'Session expired or invalid. Please try again.', ephemeral: true });
+          return;
+        }
+        const stackableItems = session.items;
+        // Optionally clean up after use
+        multiSellSessions.delete(interaction.user.id);
+        // Now extract quantities for each stackable item
+        let messages = [];
+        let totalGold = 0;
+        let indicesToRemove = [];
+        const userId = interaction.user.id;
+        let character = await getCharacter(userId);
+        for (let i = 0; i < stackableItems.length; i++) {
+          const item = stackableItems[i];
+          // Find the inventory index for this item (by name and rarity)
+          const invIdx = character.inventory.findIndex(invItem => invItem && typeof invItem === 'object' && invItem.name === item.name && ((invItem.rarity || '') === (item.rarity || '')) && invItem.count > 1);
+          if (invIdx === -1) {
+            messages.push(`❌ ${item.name}: Not found or not stackable.`);
+            continue;
+          }
+          // Use the inventory item reference for mutation
+          const invItem = character.inventory[invIdx];
+          // Robustly extract quantity from modal fields for all Discord.js versions
+          // Always extract modal values from interaction.fields.fields as an array (Discord.js v14+)
+          // Discord.js v14+ (your version): interaction.fields.fields is always an array of field objects
+          // Use Discord.js v14+ API: getTextInputValue
+          let debugQtyInfo = '';
+          let qty;
+          try {
+            qty = interaction.fields.getTextInputValue(`qty_${i}`);
+            debugQtyInfo += `getTextInputValue qty_${i}: ${qty}\n`;
+          } catch (e) {
+            debugQtyInfo += `getTextInputValue qty_${i} ERROR: ${e.message}\n`;
+            qty = undefined;
+          }
+          qty = qty === 'all' ? item.count : parseInt(qty, 10);
+          debugQtyInfo += `Parsed qty: ${qty}\n`;
+          // If quantity is invalid, reply with debug info for diagnosis
+          if (!qty || qty < 1 || qty > item.count) {
+            const debugModal = require('../debug_modal');
+            if (!interaction.replied && !interaction.deferred) {
+              await debugModal(interaction);
+              // Also send extracted qty debug info
+              await interaction.followUp({ content: `DEBUG QTY INFO for ${item.name}:\n${debugQtyInfo}`, ephemeral: true });
+            }
+            messages.push(`❌ ${item.name}: Sell between 1 and ${item.count}.`);
+            continue;
+          }
+          const price = item.price || 10;
+          if (item.count > qty) {
+            item.count -= qty;
+            character.inventory[invIdx] = item;
+          } else {
+            indicesToRemove.push(invIdx);
+          }
+          totalGold += price * qty;
+          messages.push(`✅ Sold **${item.name}** x${qty} for ${price * qty} Gold!`);
+        }
+        // Remove sold-out items after processing all
+        indicesToRemove.sort((a, b) => b - a).forEach(idx => character.inventory.splice(idx, 1));
+        const addGoldToInventory = require('../addGoldToInventory');
+        addGoldToInventory(character.inventory, totalGold);
+        await saveCharacter(userId, character);
+        // DEBUG: show final state before reply
+        // Always show confirmation message to the user
+        const confirmation = messages.join('\n') + (totalGold ? `\nTotal Gold Earned: ${totalGold}` : '');
+        // Defer reply if not already handled
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.deferReply({ ephemeral: true });
+        }
+        // Always use editReply for confirmation
+        await interaction.editReply({
+          content: confirmation
+        });
+        // Debug output removed for production
+        // try {
+        //   await interaction.followUp({
+        //     content: 'DEBUG FINAL STATE:\n' +
+        //       'messages: ' + JSON.stringify(messages) + '\n' +
+        //       'totalGold: ' + totalGold + '\n' +
+        //       'inventory: ' + JSON.stringify(character.inventory),
+        //     ephemeral: true
+        //   });
+        // } catch(e) {/* ignore if followUp fails */}
+        return;
+      } catch (e) {
+        // const debugModal = require('../debug_modal');
+        // if (!interaction.replied && !interaction.deferred) await debugModal(interaction);
+        return;
+      }
+    }
+    // Legacy single stackable modal (keep for backward compatibility)
     if (interaction.isModalSubmit && interaction.customId.startsWith(`sell_quantity${delimiter}`)) {
       // Extract encoded name and rarity using the robust delimiter
       const parts = interaction.customId.split(delimiter);

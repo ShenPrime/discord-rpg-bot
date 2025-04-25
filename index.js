@@ -4,6 +4,7 @@ const path = require('path');
 const { Client, GatewayIntentBits, Collection, Events } = require('discord.js');
 const shop = require('./commands/shop.js');
 const sell = require('./commands/sell.js');
+const testmodal = require('./commands/testmodal.js');
 const equip = require('./commands/equip.js');
 const use = require('./commands/use.js');
 const character = require('./commands/character.js');
@@ -106,6 +107,24 @@ client.on(Events.InteractionCreate, async interaction => {
       console.error(error);
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({ content: 'There was an error processing your sell selection!', ephemeral: true });
+      }
+    }
+  } else if (interaction.isModalSubmit() && interaction.customId === 'test_modal') {
+    try {
+      await testmodal.handleSelect(interaction);
+    } catch (error) {
+      console.error(error);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: 'There was an error processing your test modal!', ephemeral: true });
+      }
+    }
+  } else if (interaction.isModalSubmit() && interaction.customId.startsWith('sell_multi')) {
+    try {
+      await sell.handleSelect(interaction);
+    } catch (error) {
+      console.error(error);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: 'There was an error processing your sell modal!', ephemeral: true });
       }
     }
   } else if (interaction.isModalSubmit() && interaction.customId.startsWith('sell_quantity')) {
