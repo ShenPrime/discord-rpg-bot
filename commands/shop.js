@@ -8,6 +8,7 @@ const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
 const { loadCharacters, saveCharacters } = require('../characterUtils');
 
 const { houseTable, mountTable, armorTable, weaponTable, potionTable } = require('./loot');
+const mergeOrAddInventoryItem = require('../mergeOrAddInventoryItem');
 
 // Houses (scaling size & price)
 

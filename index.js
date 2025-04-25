@@ -60,6 +60,7 @@ client.once('ready', async () => {
   }
 });
 
+const inventory = require('./commands/inventory.js');
 client.on(Events.InteractionCreate, async interaction => {
   if (interaction.isChatInputCommand()) {
     const command = client.commands.get(interaction.commandName);
@@ -104,6 +105,22 @@ client.on(Events.InteractionCreate, async interaction => {
       console.error(error);
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({ content: 'There was an error processing your use selection!', ephemeral: true });
+      }
+    }
+  } else if (
+    interaction.isButton() && (
+      interaction.customId === 'inv_next' ||
+      interaction.customId === 'inv_prev' ||
+      interaction.customId === 'back_to_inventory' ||
+      interaction.customId === 'show_equipped'
+    )
+  ) {
+    try {
+      await inventory.execute(interaction);
+    } catch (error) {
+      console.error(error);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: 'There was an error processing your inventory action!', ephemeral: true });
       }
     }
   } else if (interaction.isButton() && interaction.customId === 'explore_again') {

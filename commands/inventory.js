@@ -6,13 +6,11 @@ function loadCharacters() {
   const fs = require('fs');
   const path = require('path');
   const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
-  if (!fs.existsSync(CHARACTERS_FILE)) return {};
-  try {
+  if (!fs.existsSync(CHARACTERS_FILE)) return {};  try {
     const data = fs.readFileSync(CHARACTERS_FILE, 'utf-8');
     return JSON.parse(data);
   } catch (e) {
-    return {};
-  }
+    return {};  }
 }
 function saveCharacters(characters) {
   const fs = require('fs');
@@ -26,11 +24,13 @@ module.exports = {
     .setName('inventory')
     .setDescription('Check your inventory.'),
   async execute(interaction) {
+    const isButton = interaction.isButton && interaction.isButton();
+    const respond = (...args) => isButton ? interaction.update(...args) : interaction.reply(...args);
     const userId = interaction.user.id;
     let characters = loadCharacters();
     let character = characters[userId];
     if (!character) {
-      await interaction.reply({ content: 'You do not have a character yet. Use /character to create one!', ephemeral: true });
+      await respond({ content: 'You do not have a character yet. Use /character to create one!', ephemeral: true });
       return;
     }
     // Ensure inventory exists
@@ -40,8 +40,9 @@ module.exports = {
       saveCharacters(characters);
     }
     if (character.inventory.length === 0) {
-      await interaction.reply({ content: 'Your inventory is empty.', ephemeral: true });
-    } else {
+      await respond({ content: 'Your inventory is empty.', ephemeral: true });
+      return;
+    }
       // Rich formatting: numbered, grouped with icons
 
 
@@ -78,8 +79,7 @@ const typeIcons = {
   Gold: '💰',
   Armor: '🛡️',
   Default: '🎒'
-};
-function getItemType(item) {
+};function getItemType(item) {
   if (/sword|axe|dagger|bow/i.test(item)) return 'Weapon';
   if (/potion/i.test(item)) return 'Potion';
   if (/gold/i.test(item)) return 'Gold';
@@ -87,20 +87,17 @@ function getItemType(item) {
   return 'Default';
 }
 // Count equipped items by name (excluding gold)
-const equippedCounts = {};
-if (character.equipment) {
+const equippedCounts = {};if (character.equipment) {
   for (const eq of Object.values(character.equipment)) {
     if (eq && eq !== 'Gold') {
       equippedCounts[eq] = (equippedCounts[eq] || 0) + 1;
     }
   }
 }
-const itemCounts = {};
-for (const item of character.inventory) {
+const itemCounts = {};for (const item of character.inventory) {
   let itemName = typeof item === 'string' ? item : item.name;
   if (itemName === 'Gold') {
-    itemCounts[itemName] = itemCounts[itemName] || { count: 0, data: item };
-    itemCounts[itemName].count += (typeof item === 'object' && item.count) ? item.count : 1;
+    itemCounts[itemName] = itemCounts[itemName] || { count: 0, data: item };    itemCounts[itemName].count += (typeof item === 'object' && item.count) ? item.count : 1;
     continue;
   }
   // Subtract equipped count from inventory count
@@ -108,8 +105,7 @@ for (const item of character.inventory) {
   const equippedCount = equippedCounts[itemName] || 0;
   const unequippedCount = totalCount - equippedCount;
   if (unequippedCount > 0) {
-    itemCounts[itemName] = itemCounts[itemName] || { count: 0, data: item };
-    itemCounts[itemName].count += unequippedCount;
+    itemCounts[itemName] = itemCounts[itemName] || { count: 0, data: item };    itemCounts[itemName].count += unequippedCount;
   }
 }
 const uniqueItems = Object.keys(itemCounts);
@@ -143,8 +139,7 @@ return {
   name: `${icon} ${itemName}`,
   value: value.trim() || '—',
   inline: false
-};
-}));
+};}));
 
       // Pagination logic
       const ITEMS_PER_PAGE = 10;
@@ -186,20 +181,28 @@ return {
             .setDisabled(page === totalPages - 1)
         );
       }
-      await interaction.reply({
-        embeds: [embed],
-        components: [row],
-        ephemeral: true
-      });
-
-      // Button interaction handler (collector)
-      const filter = i => i.user.id === interaction.user.id && (['inv_next', 'inv_prev', 'show_equipped', 'back_to_inventory'].includes(i.customId));
-      const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
-      collector.on('collect', async i => {
-        if (i.customId === 'show_equipped') {
+      // Button interaction logic is now handled globally in index.js
+      // Handle button actions directly here if invoked as a button
+      if (isButton) {
+        let customId = interaction.customId;
+        // Parse page from message footer if available
+        let currentPage = 0;
+        const footer = interaction.message?.embeds?.[0]?.footer?.text;
+        if (footer) {
+          const match = footer.match(/Page (\d+) of (\d+)/);
+          if (match) currentPage = parseInt(match[1], 10) - 1;
+        }
+        let page = currentPage;
+        if (customId === 'inv_next') page++;
+        if (customId === 'inv_prev') page--;
+        if (page < 0) page = 0;
+        const totalPages = Math.ceil(inventoryItems.length / ITEMS_PER_PAGE) || 1;
+        if (page >= totalPages) page = totalPages - 1;
+        const pagedItems = inventoryItems.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+        if (customId === 'show_equipped') {
           // Show only equipped items
           const slotOrder = ['head', 'arms', 'chest', 'legs', 'necklace', 'ring1', 'ring2', 'weapon'];
-          // Lookup lootTable for stat boosts
           const { lootTable } = require('./loot');
           const equippedItems = slotOrder
             .filter(slot => character.equipment && character.equipment[slot])
@@ -216,8 +219,7 @@ return {
                 name: `${slot.charAt(0).toUpperCase() + slot.slice(1)}`,
                 value: itemName + (statsStr ? `\n${statsStr}` : ''),
                 inline: false
-              };
-            });
+              };            });
           const equipEmbed = new EmbedBuilder()
             .setTitle(`${interaction.user.username}'s Equipped Items`)
             .setColor(0x00bfff);
@@ -234,60 +236,30 @@ return {
                 .setLabel('Back to Inventory')
                 .setStyle(ButtonStyle.Primary)
             );
-          await i.update({
+          await interaction.update({
             embeds: [equipEmbed],
             components: [backRow],
             ephemeral: true
           });
           return;
         }
-        if (i.customId === 'back_to_inventory') {
-          // Re-show inventory in-place
+        if (customId === 'back_to_inventory') {
           page = 0;
-          const pagedItems = inventoryItems.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
-          const newEmbed = EmbedBuilder.from(embed).setFields([]).setFooter({ text: `Page ${page + 1} of ${totalPages}` });
-          pagedItems.forEach(item => newEmbed.addFields(item));
-          const newRow = new ActionRowBuilder();
-          newRow.addComponents(
-            new ButtonBuilder()
-              .setCustomId('show_equipped')
-              .setLabel('Show Equipped')
-              .setStyle(ButtonStyle.Primary)
-          );
-          if (totalPages > 1) {
-            newRow.addComponents(
-              new ButtonBuilder()
-                .setCustomId('inv_prev')
-                .setLabel('Previous')
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(page === 0),
-              new ButtonBuilder()
-                .setCustomId('inv_next')
-                .setLabel('Next')
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(page === totalPages - 1)
-            );
-          }
-          await i.update({ embeds: [newEmbed], components: [newRow], ephemeral: true });
-          return;
         }
-        if (i.customId === 'inv_next') page++;
-        if (i.customId === 'inv_prev') page--;
-        if (page < 0) page = 0;
-        if (page >= totalPages) page = totalPages - 1;
-        const pagedItems = inventoryItems.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
-        const newEmbed = EmbedBuilder.from(embed).setFields([]).setFooter({ text: `Page ${page + 1} of ${totalPages}` });
-        pagedItems.forEach(item => newEmbed.addFields(item));
-        // Rebuild the button row to update disabled state
-        const newRow = new ActionRowBuilder();
-        newRow.addComponents(
+        const embed = new (require('discord.js')).EmbedBuilder()
+          .setTitle(`${interaction.user.username}'s Inventory`)
+          .setColor(0xffd700)
+          .setFooter({ text: `Page ${page + 1} of ${totalPages}` });
+        pagedItems.forEach(item => embed.addFields(item));
+        const row = new ActionRowBuilder();
+        row.addComponents(
           new ButtonBuilder()
             .setCustomId('show_equipped')
             .setLabel('Show Equipped')
             .setStyle(ButtonStyle.Primary)
         );
         if (totalPages > 1) {
-          newRow.addComponents(
+          row.addComponents(
             new ButtonBuilder()
               .setCustomId('inv_prev')
               .setLabel('Previous')
@@ -300,8 +272,18 @@ return {
               .setDisabled(page === totalPages - 1)
           );
         }
-        await i.update({ embeds: [newEmbed], components: [newRow], ephemeral: true });
+        await interaction.update({
+          embeds: [embed],
+          components: [row],
+          ephemeral: true
+        });
+        return;
+      }
+      // Otherwise, respond to slash command
+      await respond({
+        embeds: [embed],
+        components: [row],
+        ephemeral: true
       });
     }
   }
-};
