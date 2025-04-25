@@ -3,34 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
 
-function loadCharacters() {
-  if (!fs.existsSync(CHARACTERS_FILE)) return {};
-  try {
-    const data = fs.readFileSync(CHARACTERS_FILE, 'utf-8');
-    const parsed = JSON.parse(data);
-    // Normalize all inventories: ensure every item except gold has a count property
-    for (const charId in parsed) {
-      const character = parsed[charId];
-      if (Array.isArray(character.inventory)) {
-        character.inventory = character.inventory.map(item => {
-          if (typeof item === 'object' && item.name && item.name !== 'Gold') {
-            if (!Object.prototype.hasOwnProperty.call(item, 'count')) {
-              return { ...item, count: 1 };
-            }
-          }
-          return item;
-        });
-      }
-    }
-    return parsed;
-  } catch (e) {
-    return {};
-  }
-}
+const { getCharacter, saveCharacter } = require('../characterModel');
 
-function saveCharacters(characters) {
-  fs.writeFileSync(CHARACTERS_FILE, JSON.stringify(characters, null, 2));
-}
+
 
 // Usable items will be pulled from the lootTable based on the presence of a 'uses' property
 const { lootTable } = require('./loot');
@@ -144,8 +119,7 @@ module.exports = {
       character.inventory.splice(invIdx, 1);
       usedMsg = `You used **${itemName}**. It is now gone!`;
     }
-    characters[userId] = character;
-    saveCharacters(characters);
+    await saveCharacter(userId, character);
     await interaction.reply({ content: `✅ ${usedMsg}${boostMsg}`, ephemeral: true });
   }
 };

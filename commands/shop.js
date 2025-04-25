@@ -5,7 +5,7 @@ const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
 
 // Loot table extracted from explore.js/fight.js for shop
 // Character file helpers
-const { loadCharacters, saveCharacters } = require('../characterUtils');
+const { getCharacter, saveCharacter } = require('../characterModel');
 
 const { houseTable, mountTable, armorTable, weaponTable, potionTable } = require('./loot');
 const mergeOrAddInventoryItem = require('../mergeOrAddInventoryItem');
@@ -201,8 +201,7 @@ module.exports = {
       }
       gold -= shopItem.price;
     }
-    characters[userId] = character;
-    saveCharacters(characters);
+    await saveCharacter(userId, character);
     await interaction.update({
       content: purchaseResults.join('\n') + `\nRemaining gold: ${gold} Gold`,
       components: [],

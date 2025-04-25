@@ -1,9 +1,8 @@
 const { SlashCommandBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const { getXpForNextLevel, checkLevelUp, getClassForLevel, loadCharacters, saveCharacters } = require('../characterUtils');
-
-const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
+const { getXpForNextLevel, checkLevelUp, getClassForLevel } = require('../characterUtils');
+const { getCharacter, saveCharacter } = require('../characterModel');
 
 function loadCharacters() {
   if (!fs.existsSync(CHARACTERS_FILE)) return {};
@@ -47,8 +46,7 @@ module.exports = {
     ),
   async execute(interaction) {
     const userId = interaction.user.id;
-    let characters = loadCharacters();
-    let character = characters[userId];
+    let character = await getCharacter(userId);
 
     if (character) {
       // Level and XP display
@@ -59,7 +57,7 @@ module.exports = {
       // Level up if necessary (may level up multiple times)
       const { leveledUp, levelUpMsg } = checkLevelUp(character);
       if (leveledUp) {
-        saveCharacters(characters);
+        await saveCharacter(userId, character);
         await interaction.reply({
           content: levelUpMsg,
           ephemeral: true
@@ -149,13 +147,14 @@ module.exports = {
       let houseStr = character.house ? `🏠 **${character.house.name}** (${character.house.size})\n${character.house.description}` : '';
       let mountStr = character.mount ? `🐎 **${character.mount.name}**\n${character.mount.description}` : '';
       // Embed
+      await saveCharacter(userId, character);
       await interaction.reply({
         embeds: [{
           title: `${classIcon} ${character.name} — ${character.class}`,
           description:
             `${userMention}\n\n` +
             `**Level:** ${character.level}\n` +
-            `**XP:** ${character.xp || 0} / ${characterUtils.getXpForNextLevel(character.level || 1)}\n\n` +
+            `**XP:** ${character.xp || 0} / ${getXpForNextLevel(character.level || 1)}\n\n` +
             `__Base Stats:__\n${statLines}\n` +
             `__Total Stats:__\n${totalStatLines}` +
             (eqList.length ? `\n\n**Equipment:**\n${eqList.join(' \n')}` : '') +
@@ -189,8 +188,7 @@ module.exports = {
           luck: 2
         }
       };
-      characters[userId] = character;
-      saveCharacters(characters);
+      await saveCharacter(userId, character);
       // Class icons
       const classIcons = {
         'Adventurer': '🧑‍🌾',

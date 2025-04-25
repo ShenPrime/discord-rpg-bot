@@ -8,10 +8,10 @@ module.exports = {
     .setDescription('Engage in a quick battle!'),
   async execute(interaction, replyFn) {
     // Load user character
-    const { loadCharacters, saveCharacters, getXpForNextLevel, checkLevelUp } = require('../characterUtils');
-    let characters = loadCharacters();
+    const { getXpForNextLevel, checkLevelUp } = require('../characterUtils');
+    const { getCharacter, saveCharacter } = require('../characterModel');
     const userId = interaction.user.id;
-    let character = characters[userId];
+    let character = await getCharacter(userId);
     if (!character) {
       const respond = replyFn || (data => interaction.reply(data));
       await respond({ content: 'You do not have a character yet. Use /character to create one!', ephemeral: true });
@@ -143,8 +143,7 @@ module.exports = {
       character.activeEffects = character.activeEffects.map(e => ({...e, usesLeft: e.usesLeft - 1})).filter(e => e.usesLeft > 0);
     }
     // Save
-    characters[userId] = character;
-    saveCharacters(characters);
+    await saveCharacter(userId, character);
     // Add 'Fight Again' button
     const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
     const row = new ActionRowBuilder().addComponents(

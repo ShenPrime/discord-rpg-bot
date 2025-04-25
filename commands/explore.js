@@ -9,10 +9,9 @@ module.exports = {
   async execute(interaction, replyFn) {
     // Load user character
     const userId = interaction.user.id;
-    // Use same helpers as inventory.js
-    const { loadCharacters, saveCharacters, getXpForNextLevel, checkLevelUp } = require('../characterUtils');
-    let characters = loadCharacters();
-    let character = characters[userId];
+    const { getXpForNextLevel, checkLevelUp } = require('../characterUtils');
+    const { getCharacter, saveCharacter } = require('../characterModel');
+    let character = await getCharacter(userId);
     if (!character) {
       await interaction.reply({ content: 'You do not have a character yet. Use /character to create one!', ephemeral: true });
       return;
@@ -77,8 +76,7 @@ module.exports = {
     if (character.activeEffects && Array.isArray(character.activeEffects)) {
       character.activeEffects = character.activeEffects.map(e => ({...e, usesLeft: e.usesLeft - 1})).filter(e => e.usesLeft > 0);
     }
-    characters[userId] = character;
-    saveCharacters(characters);
+    await saveCharacter(userId, character);
     let reply = `You explore...\nYou gain ${xpGained} XP!`;
     reply += `\nLevel: ${character.level || 1} | XP: ${character.xp} / ${getXpForNextLevel(character.level || 1)}`;
     if (leveledUp) reply += levelUpMsg;

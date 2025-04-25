@@ -2,22 +2,8 @@
 const { SlashCommandBuilder } = require('discord.js');
 
 // Utility functions to load/save characters (shared with character.js)
-function loadCharacters() {
-  const fs = require('fs');
-  const path = require('path');
-  const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
-  if (!fs.existsSync(CHARACTERS_FILE)) return {};  try {
-    const data = fs.readFileSync(CHARACTERS_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (e) {
-    return {};  }
-}
-function saveCharacters(characters) {
-  const fs = require('fs');
-  const path = require('path');
-  const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
-  fs.writeFileSync(CHARACTERS_FILE, JSON.stringify(characters, null, 2));
-}
+const { getCharacter, saveCharacter } = require('../characterModel');
+
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -27,8 +13,7 @@ module.exports = {
     const isButton = interaction.isButton && interaction.isButton();
     const respond = (...args) => isButton ? interaction.update(...args) : interaction.reply(...args);
     const userId = interaction.user.id;
-    let characters = loadCharacters();
-    let character = characters[userId];
+    let character = await getCharacter(userId);
     if (!character) {
       await respond({ content: 'You do not have a character yet. Use /character to create one!', ephemeral: true });
       return;
@@ -36,8 +21,7 @@ module.exports = {
     // Ensure inventory exists
     if (!Array.isArray(character.inventory)) {
       character.inventory = [];
-      characters[userId] = character;
-      saveCharacters(characters);
+      await saveCharacter(userId, character);
     }
     if (character.inventory.length === 0) {
       await respond({ content: 'Your inventory is empty.', ephemeral: true });
@@ -69,8 +53,7 @@ if (goldTotal > 0) {
 // Update inventory in memory and on disk if changed
 if (JSON.stringify(newInventory) !== JSON.stringify(character.inventory)) {
   character.inventory = newInventory;
-  characters[userId] = character;
-  saveCharacters(characters);
+  await saveCharacter(userId, character);
 }
 // Build display items
 const typeIcons = {
@@ -280,6 +263,7 @@ return {
         return;
       }
       // Otherwise, respond to slash command
+      await saveCharacter(userId, character);
       await respond({
         embeds: [embed],
         components: [row],

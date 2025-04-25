@@ -2,18 +2,8 @@ const { SlashCommandBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
-function loadCharacters() {
-  if (!fs.existsSync(CHARACTERS_FILE)) return {};
-  try {
-    const data = fs.readFileSync(CHARACTERS_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (e) {
-    return {};
-  }
-}
-function saveCharacters(characters) {
-  fs.writeFileSync(CHARACTERS_FILE, JSON.stringify(characters, null, 2));
-}
+const { getCharacter, saveCharacter } = require('../characterModel');
+
 
 // No ITEM_EFFECTS needed; use lootTable for slot and stats
 const { lootTable } = require('./loot');
@@ -123,8 +113,7 @@ module.exports = {
     character.equipment[slot] = itemName; // Store only the name
     // Remove from inventory
     character.inventory.splice(invIdx, 1);
-    characters[userId] = character;
-    saveCharacters(characters);
+    await saveCharacter(userId, character);
     let msg = `✅ Equipped **${itemName}** in slot ${slot}.`;
     if (unequipped) msg += ` (Unequipped **${unequipped}**.)`;
     await interaction.reply({ content: msg, ephemeral: true });
