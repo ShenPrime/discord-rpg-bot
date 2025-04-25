@@ -43,7 +43,15 @@ module.exports = {
       .map(item => {
         let name = typeof item === 'string' ? item : item.name;
         let count = (typeof item === 'object' && item.count) ? item.count : 1;
-        return { name, value: name, count };
+        let statLabel = '';
+        if (typeof item === 'object' && item.stats) {
+          const statMap = { strength: 'STR', defense: 'DEF', luck: 'LUK' };
+          statLabel = Object.entries(item.stats)
+            .map(([stat, val]) => `+${val} ${statMap[stat] || stat}`)
+            .join(', ');
+          if (statLabel) statLabel = ` (${statLabel})`;
+        }
+        return { name: `${name}${statLabel}${count > 1 ? ` x${count}` : ''}`, value: name, count };
       });
     if (input) {
       items = items.filter(i => i.name.toLowerCase().includes(input));
@@ -59,8 +67,8 @@ module.exports = {
       });
     }
     const suggestions = items.slice(0, 25).map(i => ({
-      name: `${i.name} (${i.count})`,
-      value: i.name
+      name: i.name,
+      value: i.value
     }));
     await interaction.respond(suggestions);
   },
