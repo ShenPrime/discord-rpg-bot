@@ -120,8 +120,12 @@ module.exports = {
       }
     }
     character.equipment[slot] = itemName; // Store only the name
-    // Remove from inventory
-    character.inventory.splice(invIdx, 1);
+    // Remove one from inventory (decrement count if stackable)
+    if (typeof item === 'object' && item.count && item.count > 1) {
+      character.inventory[invIdx].count -= 1;
+    } else {
+      character.inventory.splice(invIdx, 1);
+    }
     await saveCharacter(userId, character);
     let msg = `✅ Equipped **${itemName}** in slot ${slot}.`;
     if (unequipped) msg += ` (Unequipped **${unequipped}**.)`;
