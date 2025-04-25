@@ -61,88 +61,125 @@ module.exports = {
         character.xp = xp - xpForNext;
         // Level up stats by random 1-5
         if (!character.stats) {
-          character.stats = { strength: 2, defense: 2, agility: 2, luck: 2 };
+          character.stats = { strength: 2, defense: 2, luck: 2 };
         }
+        // Update class based on level
+        character.class = getClassForLevel(character.level);
+        // Level up stats by random 1-5
         function randStat() { return Math.floor(Math.random() * 2) + 1; }
         const strUp = randStat();
         const defUp = randStat();
-        const agiUp = randStat();
         const luckUp = randStat();
         character.stats.strength += strUp;
         character.stats.defense += defUp;
-        character.stats.agility += agiUp;
         character.stats.luck += luckUp;
         saveCharacters(characters);
         await interaction.reply({
-          content: `You leveled up! You are now level ${character.level}.
-Stats gained: STR +${strUp}, DEF +${defUp}, AGI +${agiUp}, LUCK +${luckUp}`,
+          content: `You leveled up! You are now level ${character.level}. Your new class is ${character.class}.
+Stats gained: STR +${strUp}, DEF +${defUp}, LUCK +${luckUp}`,
           ephemeral: true
         });
       }
 
-      // Calculate equipment bonuses
-      // Use lootTable from loot.js for equipment stats
+      // Always update class in case level/class is out of sync
+      character.class = getClassForLevel(character.level);
+      // Class and stat icons
+      const classIcons = {
+        'Adventurer': '🧑‍🌾',
+        'Warrior': '🗡️',
+        'Veteran': '🦾',
+        'Elite Warrior': '⚔️',
+        'Master Knight': '🛡️',
+        'Legendary Hero': '🦸',
+        'Mythic Champion': '🐉',
+        'Divine Hero': '👼',
+        'Transcendent': '🌌',
+        'Divine Avatar': '👑',
+        'Diety': '☀️',
+        'Supreme': '💎',
+        'Supreme Celestial': '🌠',
+        'Cosmic Supreme': '🪐'
+      };
+      const statIcons = {
+        strength: '💪',
+        defense: '🛡️',
+        luck: '🍀'
+      };
+      const userMention = `<@${userId}>`;
+      const classIcon = classIcons[character.class] || '✨';
+      // Stat lines
+      let statLines = Object.entries(character.stats || {}).map(([stat, val]) => {
+        const icon = statIcons[stat] || '';
+        return `${icon} **${stat.charAt(0).toUpperCase() + stat.slice(1)}:** ${val}`;
+      }).join('\n');
+      // Calculate total stats (base + equipment + temp)
       const { lootTable } = require('./loot');
-      const baseStats = character.stats || { strength: 2, defense: 2, agility: 2, luck: 2 };
-      let eqStats = { strength: 0, defense: 0, agility: 0, luck: 0 };
-      let eqList = [];
+      const baseStats = { ...character.stats };
+      let eqStats = { strength: 0, defense: 0, luck: 0 };
       if (character.equipment) {
         for (const [slot, itemName] of Object.entries(character.equipment)) {
-          // Find the item in lootTable
           const lootItem = lootTable.find(i => i.name === itemName && i.stats);
           if (lootItem && lootItem.stats) {
-            eqList.push(`${slot}: ${itemName}`);
             for (const [stat, val] of Object.entries(lootItem.stats)) {
               eqStats[stat] = (eqStats[stat] || 0) + val;
             }
           }
         }
       }
-      // Add temporary boosts from activeEffects
-      let tempStats = { strength: 0, defense: 0, agility: 0, luck: 0 };
-      let tempEffects = [];
+      let tempStats = { strength: 0, defense: 0, luck: 0 };
       if (character.activeEffects && Array.isArray(character.activeEffects)) {
         for (const effect of character.activeEffects) {
           if (tempStats.hasOwnProperty(effect.stat)) {
             tempStats[effect.stat] += effect.boost;
-            tempEffects.push(`+${effect.boost} ${effect.stat} (${effect.usesLeft} uses left)`);
           }
         }
       }
-      const totalStats = {
-        strength: baseStats.strength + (eqStats.strength || 0) + (tempStats.strength || 0),
-        defense: baseStats.defense + (eqStats.defense || 0) + (tempStats.defense || 0),
-        agility: baseStats.agility + (eqStats.agility || 0) + (tempStats.agility || 0),
-        luck: baseStats.luck + (eqStats.luck || 0) + (tempStats.luck || 0)
-      };
-
+      let totalStats = { ...baseStats };
+      for (const stat of Object.keys(eqStats)) {
+        totalStats[stat] = (totalStats[stat] || 0) + (eqStats[stat] || 0);
+      }
+      for (const stat of Object.keys(tempStats)) {
+        totalStats[stat] = (totalStats[stat] || 0) + (tempStats[stat] || 0);
+      }
+      let totalStatLines = Object.entries(totalStats).map(([stat, val]) => {
+        const icon = statIcons[stat] || '';
+        return `${icon} **${stat.charAt(0).toUpperCase() + stat.slice(1)}:** ${val}`;
+      }).join('   ');
+      // Equipment
+      let eqList = [];
+      if (character.equipment) {
+        for (const [slot, itemName] of Object.entries(character.equipment)) {
+          eqList.push(`• ${slot}: **${itemName}**`);
+        }
+      }
+      // Temporary effects
+      let tempEffects = [];
+      if (character.activeEffects && Array.isArray(character.activeEffects)) {
+        for (const effect of character.activeEffects) {
+          tempEffects.push(`+${effect.boost} ${effect.stat} (${effect.usesLeft} uses left)`);
+        }
+      }
+      // House and mount
+      let houseStr = character.house ? `🏠 **${character.house.name}** (${character.house.size})\n${character.house.description}` : '';
+      let mountStr = character.mount ? `🐎 **${character.mount.name}**\n${character.mount.description}` : '';
+      // Embed
       await interaction.reply({
         embeds: [{
-          title: `${interaction.user.username}'s Character`,
-          fields: [
-            { name: 'Name', value: character.name },
-            { name: 'Class', value: character.class },
-            { name: 'Level', value: `${character.level}` },
-            { name: 'XP', value: `${character.xp} / ${100 * character.level}` },
-            { name: 'Stats', value: `STR: ${baseStats.strength} | DEF: ${baseStats.defense} | AGI: ${baseStats.agility} | LUCK: ${baseStats.luck}` },
-            { name: 'Equipment', value: eqList.length ? eqList.join('\n') : 'None', inline: false },
-            { name: 'Total Stats', value: `STR: ${totalStats.strength} | DEF: ${totalStats.defense} | AGI: ${totalStats.agility} | LUCK: ${totalStats.luck}` },
-            ...(tempEffects.length ? [{
-              name: 'Temporary Effects',
-              value: tempEffects.join('\n'),
-              inline: false
-            }] : []),
-            ...(character.house ? [{
-              name: '🏠 House',
-              value: `**${character.house.name}** (${character.house.size})\n${character.house.description}`
-            }] : []),
-            ...(character.mount ? [{
-              name: '🐎 Mount',
-              value: `**${character.mount.name}**\n${character.mount.description}`
-            }] : [])
-          ],
-          color: 0x00ff99,
-        }]
+          title: `${classIcon} ${character.name} — ${character.class}`,
+          description:
+            `${userMention}\n\n` +
+            `**Level:** ${character.level}\n` +
+            `**XP:** ${character.xp || 0} / ${100 * (character.level || 1)}\n\n` +
+            `__Base Stats:__\n${statLines}\n` +
+            `__Total Stats:__\n${totalStatLines}` +
+            (eqList.length ? `\n\n**Equipment:**\n${eqList.join(' \n')}` : '') +
+            (tempEffects.length ? `\n\n**Temporary Effects:**\n${tempEffects.join(' \n')}` : '') +
+            (houseStr ? `\n\n${houseStr}` : '') +
+            (mountStr ? `\n\n${mountStr}` : ''),
+          color: 0x3498db,
+          footer: { text: 'Your RPG Character Sheet' }
+        }],
+        ephemeral: true
       });
     } else {
       // Prompt for name if not provided
@@ -156,7 +193,7 @@ Stats gained: STR +${strUp}, DEF +${defUp}, AGI +${agiUp}, LUCK +${luckUp}`,
       }
       character = {
         name: inputName,
-        class: 'Adventurer', // Default class
+        class: getClassForLevel(1), // Default class based on level
         level: 1,
         xp: 0,
         stats: {
@@ -168,10 +205,67 @@ Stats gained: STR +${strUp}, DEF +${defUp}, AGI +${agiUp}, LUCK +${luckUp}`,
       };
       characters[userId] = character;
       saveCharacters(characters);
+      // Class icons
+      const classIcons = {
+        'Adventurer': '🧑‍🌾',
+        'Warrior': '🗡️',
+        'Veteran': '🦾',
+        'Elite Warrior': '⚔️',
+        'Master Knight': '🛡️',
+        'Legendary Hero': '🦸',
+        'Mythic Champion': '🐉',
+        'Divine Hero': '👼',
+        'Transcendent': '🌌',
+        'Divine Avatar': '👑',
+        'Diety': '☀️',
+        'Supreme': '💎',
+        'Supreme Celestial': '🌠',
+        'Cosmic Supreme': '🪐'
+      };
+      const statIcons = {
+        strength: '💪',
+        defense: '🛡️',
+        luck: '🍀'
+      };
+      const userMention = `<@${userId}>`;
+      const classIcon = classIcons[character.class] || '✨';
+      // Stat lines
+      let statLines = Object.entries(character.stats || {}).map(([stat, val]) => {
+        const icon = statIcons[stat] || '';
+        return `${icon} **${stat.charAt(0).toUpperCase() + stat.slice(1)}:** ${val}`;
+      }).join('\n');
+      // Embed
       await interaction.reply({
-        content: `Character created! Welcome, ${character.name} the ${character.class} (Level ${character.level}).`,
+        embeds: [{
+          title: `${classIcon} ${character.name} — ${character.class}`,
+          description:
+            `${userMention}\n\n` +
+            `**Level:** ${character.level}\n` +
+            `**XP:** ${character.xp || 0} / ${100 * (character.level || 1)}\n\n` +
+            statLines,
+          color: 0x3498db,
+          footer: { text: 'Your RPG Character Sheet' }
+        }],
         ephemeral: true
       });
     }
   },
 };
+
+// Helper: assign class name based on level
+function getClassForLevel(level) {
+  if (level >= 95) return 'Cosmic Supreme';
+  if (level >= 90) return 'Supreme Celestial';
+  if (level >= 85) return 'Supreme';
+  if (level >= 80) return 'Diety';
+  if (level >= 75) return 'Divine Avatar';
+  if (level >= 65) return 'Transcendent';
+  if (level >= 55) return 'Divine Hero';
+  if (level >= 50) return 'Mythic Champion';
+  if (level >= 45) return 'Legendary Hero';
+  if (level >= 35) return 'Master Knight';
+  if (level >= 25) return 'Elite Warrior';
+  if (level >= 15) return 'Veteran';
+  if (level >= 10) return 'Warrior';
+  return 'Adventurer';
+}

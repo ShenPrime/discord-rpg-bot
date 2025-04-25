@@ -81,14 +81,9 @@ module.exports = {
         foundItemRarity = itemObj.rarity;
         // Special handling for gold/currency and stackables
         if (itemObj.name === 'Gold' || lootType === 'currency') {
-          // Use count property, merge into single gold entry
+          const addGoldToInventory = require('../addGoldToInventory');
           let goldAmount = itemObj.count || itemObj.amount || itemObj.price || 1;
-          let goldIdx = character.inventory.findIndex(i => typeof i === 'object' && i.name === 'Gold');
-          if (goldIdx !== -1) {
-            character.inventory[goldIdx].count = (character.inventory[goldIdx].count || 0) + goldAmount;
-          } else {
-            character.inventory.unshift({ name: 'Gold', count: goldAmount, rarity: 'common', price: 1 });
-          }
+          addGoldToInventory(character.inventory, goldAmount);
           console.log('[EXPLORE LOOT DEBUG] inventory after gold:', character.inventory);
         } else {
           mergeOrAddInventoryItem(character.inventory, itemObj);

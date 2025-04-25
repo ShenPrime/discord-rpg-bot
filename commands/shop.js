@@ -31,7 +31,8 @@ module.exports = {
 
   // No autocomplete: item selection is handled via select menus in execute()
 
-  async execute(interaction) {
+  async execute(interaction, page = 0) {
+    const paginateSelectMenu = require('../paginateSelectMenu');
     const category = interaction.options.getString('category');
     const userId = interaction.user.id;
     let characters = loadCharacters();
@@ -57,29 +58,65 @@ module.exports = {
     } else if (category === 'Mount') {
       choices = mountTable.map(m => ({ label: m.name, value: m.name, description: `${m.price} Gold` }));
     } else if (category === 'Armor') {
-      choices = armorTable.map(a => ({ label: a.name, value: a.name, description: `${a.rarity} - ${a.price} Gold` }));
+      choices = armorTable.map(a => {
+        let stats = '';
+        if (a.stats && typeof a.stats === 'object') {
+          stats = Object.entries(a.stats)
+            .map(([stat, val]) => `${stat.charAt(0).toUpperCase() + stat.slice(1)} +${val}`)
+            .join(', ');
+        }
+        return {
+          label: a.name,
+          value: a.name,
+          description: `${a.rarity} - ${a.price} Gold${stats ? ' | ' + stats : ''}`
+        };
+      });
     } else if (category === 'Weapon') {
-      choices = weaponTable.map(w => ({ label: w.name, value: w.name, description: `${w.rarity} - ${w.price} Gold` }));
+      choices = weaponTable.map(w => {
+        let stats = '';
+        if (w.stats && typeof w.stats === 'object') {
+          stats = Object.entries(w.stats)
+            .map(([stat, val]) => `${stat.charAt(0).toUpperCase() + stat.slice(1)} +${val}`)
+            .join(', ');
+        }
+        return {
+          label: w.name,
+          value: w.name,
+          description: `${w.rarity} - ${w.price} Gold${stats ? ' | ' + stats : ''}`
+        };
+      });
     } else if (category === 'Potion') {
-      choices = potionTable.map(p => ({ label: p.name, value: p.name, description: `${p.rarity} - ${p.price} Gold` }));
+      choices = potionTable.map(p => {
+        let statBoost = '';
+        if (p.stat && p.boost) {
+          statBoost = `${p.stat.charAt(0).toUpperCase() + p.stat.slice(1)} +${p.boost}`;
+        }
+        return {
+          label: p.name,
+          value: p.name,
+          description: `${p.rarity} - ${p.price} Gold${statBoost ? ' | ' + statBoost : ''}`
+        };
+      });
     }
     // Send select menu
+    if (choices.length === 0) {
+      await interaction.reply({ content: `There is nothing to buy in the ${category} shop.`, ephemeral: true });
+      return;
+    }
+    // Use global pagination utility
+    const { components, currentPage, totalPages, content } = paginateSelectMenu({
+      choices,
+      page,
+      selectCustomId: 'shop_select',
+      buttonCustomIdPrefix: 'shop_page_',
+      placeholder: 'Select what you want to buy',
+      minValues: 1,
+      maxValues: 10,
+      contentPrefix: `Select what you want to buy from the ${category} shop:`
+    });
     await interaction.reply({
-      content: `Select what you want to buy from the ${category} shop:`,
-      components: [
-        {
-          type: 1, // ACTION_ROW
-          components: [
-            {
-              type: 3, // SELECT_MENU
-              custom_id: 'shop_select',
-              min_values: 1,
-              max_values: Math.min(choices.length, 10), // Discord max is 25, but 10 is reasonable for multi-buy
-              options: choices
-            }
-          ]
-        }
-      ],
+      content,
+      components,
       ephemeral: true
     });
   },

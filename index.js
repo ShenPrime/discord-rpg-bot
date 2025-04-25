@@ -62,6 +62,17 @@ client.once('ready', async () => {
 
 const inventory = require('./commands/inventory.js');
 client.on(Events.InteractionCreate, async interaction => {
+  if (interaction.isAutocomplete()) {
+    const command = client.commands.get(interaction.commandName);
+    if (command && typeof command.autocomplete === 'function') {
+      try {
+        await command.autocomplete(interaction);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+    return;
+  }
   if (interaction.isChatInputCommand()) {
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
@@ -80,31 +91,13 @@ client.on(Events.InteractionCreate, async interaction => {
         await interaction.reply({ content: 'There was an error processing your shop selection!', ephemeral: true });
       }
     }
-  } else if (interaction.isStringSelectMenu() && interaction.customId === 'sell_select') {
+  } else if (interaction.isStringSelectMenu() && interaction.customId.startsWith('sell_')) {
     try {
       await sell.handleSelect(interaction);
     } catch (error) {
       console.error(error);
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({ content: 'There was an error processing your sell selection!', ephemeral: true });
-      }
-    }
-  } else if (interaction.isStringSelectMenu() && interaction.customId === 'equip_select') {
-    try {
-      await equip.handleSelect(interaction);
-    } catch (error) {
-      console.error(error);
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: 'There was an error processing your equip selection!', ephemeral: true });
-      }
-    }
-  } else if (interaction.isStringSelectMenu() && interaction.customId === 'use_select') {
-    try {
-      await use.handleSelect(interaction);
-    } catch (error) {
-      console.error(error);
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: 'There was an error processing your use selection!', ephemeral: true });
       }
     }
   } else if (
@@ -128,6 +121,41 @@ client.on(Events.InteractionCreate, async interaction => {
     const exploreCommand = client.commands.get('explore');
     if (exploreCommand) {
       await exploreCommand.execute(interaction, (data) => interaction.update({ ...data, ephemeral: true }));
+    }
+  } else if (interaction.isButton() && interaction.customId === 'fight_again') {
+    // Rerun the fight command logic for the user, updating the original message
+    const fightCommand = client.commands.get('fight');
+    if (fightCommand) {
+      await fightCommand.execute(interaction, (data) => interaction.update({ ...data, ephemeral: true }));
+    }
+  } else if (interaction.isButton() && interaction.customId.startsWith('equip_page_')) {
+    // Pagination for equip select menu
+    const page = parseInt(interaction.customId.replace('equip_page_', ''), 10);
+    const equipCommand = client.commands.get('equip');
+    if (equipCommand) {
+      await equipCommand.execute({ ...interaction, reply: (data) => interaction.update({ ...data, ephemeral: true }) }, page);
+    }
+  } else if (interaction.isButton() && interaction.customId.startsWith('shop_page_')) {
+    // Pagination for shop select menu
+    const page = parseInt(interaction.customId.replace('shop_page_', ''), 10);
+    const shopCommand = client.commands.get('shop');
+    if (shopCommand) {
+      // We need to preserve the category option for shop
+      await shopCommand.execute({ ...interaction, reply: (data) => interaction.update({ ...data, ephemeral: true }) }, page);
+    }
+  } else if (interaction.isButton() && interaction.customId.startsWith('use_page_')) {
+    // Pagination for use select menu
+    const page = parseInt(interaction.customId.replace('use_page_', ''), 10);
+    const useCommand = client.commands.get('use');
+    if (useCommand) {
+      await useCommand.execute({ ...interaction, reply: (data) => interaction.update({ ...data, ephemeral: true }) }, page);
+    }
+  } else if (interaction.isButton() && interaction.customId.startsWith('sell_page_')) {
+    // Pagination for sell select menu
+    const page = parseInt(interaction.customId.replace('sell_page_', ''), 10);
+    const sellCommand = client.commands.get('sell');
+    if (sellCommand) {
+      await sellCommand.execute({ ...interaction, reply: (data) => interaction.update({ ...data, ephemeral: true }) }, page);
     }
   }
 });

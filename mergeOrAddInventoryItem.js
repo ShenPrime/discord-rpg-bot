@@ -26,14 +26,19 @@ function mergeOrAddInventoryItem(inventory, itemObj) {
     inventory.push({ ...itemObj, count: itemObj.count || 1 });
     return;
   }
-  // Only compare core gameplay fields
+  // Delegate all gold merging to addGoldToInventory utility
+  if (itemObj.name === "Gold") {
+    const addGoldToInventory = require('./addGoldToInventory');
+    addGoldToInventory(inventory, itemObj.count || 1);
+    return;
+  }
+  // Only compare core gameplay fields for other items
   let existingIdx = inventory.findIndex(i => {
     if (i.uses) return false;
     if (i.name !== itemObj.name) return false;
     if (i.type !== itemObj.type) return false;
     if ((i.slot || null) !== (itemObj.slot || null)) return false;
     if ((i.rarity || null) !== (itemObj.rarity || null)) return false;
-    // Compare stats deeply
     if (i.stats || itemObj.stats) {
       if (!deepEqual(i.stats || {}, itemObj.stats || {})) return false;
     }
@@ -45,5 +50,6 @@ function mergeOrAddInventoryItem(inventory, itemObj) {
     inventory.push({ ...itemObj, count: itemObj.count || 1 });
   }
 }
+
 
 module.exports = mergeOrAddInventoryItem;

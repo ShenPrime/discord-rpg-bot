@@ -19,132 +19,33 @@ function saveCharacters(characters) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('sell')
-    .setDescription('Sell items from your inventory for gold.'),
+    .setDescription('Sell individual items with count 1 from your inventory.'),
 
-  async execute(interaction) {
-    const userId = interaction.user.id;
-    let characters = loadCharacters();
-    let character = characters[userId];
-    if (!character || !Array.isArray(character.inventory)) {
-      await interaction.reply({ content: 'You have no inventory to sell from!', ephemeral: true });
-      return;
-    }
-    // Get equipped items for labeling
-    const equippedCounts = {};
-    if (character.equipment) {
-      for (const eq of Object.values(character.equipment)) {
-        if (eq && eq !== 'Gold') {
-          equippedCounts[eq] = (equippedCounts[eq] || 0) + 1;
-        }
-      }
-    }
-    // Build select menu options, skipping gold
-    // Pagination for select menu
-    const ITEMS_PER_PAGE = 25;
-    let page = 0;
-    // Try to get page from interaction (for button navigation)
-    if (interaction.message && interaction.message.components && interaction.customId && interaction.customId.startsWith('sell_page_')) {
-      page = parseInt(interaction.customId.replace('sell_page_', ''), 10) || 0;
-    } else if (interaction.options && interaction.options.getInteger && interaction.options.getInteger('page') !== null) {
-      page = interaction.options.getInteger('page') - 1;
-    }
-    // Build options with index
-    // Unpack stackable items into individual, unequipped entries
-    const allOptions = [];
-    character.inventory.forEach((item, idx) => {
-      let name = typeof item === 'string' ? item : item.name;
-      if (/gold/i.test(name)) return; // skip gold
-      let price = (typeof item === 'object' && item.price) ? item.price : 10;
-      let count = (typeof item === 'object' && item.count) ? item.count : 1;
-      let equippedCount = equippedCounts[name] || 0;
-      let unequippedCount = count - equippedCount;
-      // For stackables, add one entry per unequipped instance, with unique value
-      if (unequippedCount > 0) {
-        for (let i = 0; i < unequippedCount; i++) {
-          allOptions.push({
-            label: `${name} - ${price} Gold`,
-            value: `${idx}_${i}`,
-            description: name.length < 90 ? name : name.slice(0, 90)
-          });
-        }
-      }
-    });
-    const totalPages = Math.ceil(allOptions.length / ITEMS_PER_PAGE) || 1;
-    if (page < 0) page = 0;
-    if (page >= totalPages) page = totalPages - 1;
-    const pagedOptions = allOptions.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
-    if (pagedOptions.length === 0) {
-      await interaction.reply({ content: 'You have nothing to sell on this page!', ephemeral: true });
-      return;
-    }
-    const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
-    const selectRow = new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId('sell_select')
-        .setMinValues(1)
-        .setMaxValues(Math.min(pagedOptions.length, 10))
-        .setOptions(pagedOptions)
-    );
-    let buttonRow = null;
-    if (totalPages > 1) {
-      buttonRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('sell_page_' + (page - 1))
-          .setLabel('Previous')
-          .setStyle(ButtonStyle.Secondary)
-          .setDisabled(page === 0),
-        new ButtonBuilder()
-          .setCustomId('sell_page_' + (page + 1))
-          .setLabel('Next')
-          .setStyle(ButtonStyle.Secondary)
-          .setDisabled(page === totalPages - 1)
+  async execute(interaction, page = 0, categoryArg = null) {
+    // Step 1: Show category select menu or show items in category
+    const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+    const paginateSelectMenu = require('../paginateSelectMenu');
+    const categories = [
+      { label: 'Weapons', value: 'Weapon' },
+      { label: 'Armor', value: 'Armor' },
+      { label: 'Potions', value: 'Potion' },
+      { label: 'Gems', value: 'Gem' }
+    ];
+    if (!categoryArg) {
+      const catRow = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId('sell_category')
+          .setPlaceholder('Select a category to sell from')
+          .addOptions(categories)
       );
-    }
-    await interaction.reply({
-      content: `Select items to sell: (Page ${page + 1} of ${totalPages})`,
-      components: buttonRow ? [selectRow, buttonRow] : [selectRow],
-      ephemeral: true
-    });
-
-    // Button collector for pagination
-    if (totalPages > 1) {
-      const filter = i => i.user.id === interaction.user.id && i.customId.startsWith('sell_page_');
-      const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
-      collector.on('collect', async i => {
-        let nextPage = parseInt(i.customId.replace('sell_page_', ''), 10);
-        if (isNaN(nextPage)) nextPage = 0;
-        if (nextPage < 0) nextPage = 0;
-        if (nextPage >= totalPages) nextPage = totalPages - 1;
-        const pagedOptions = allOptions.slice(nextPage * ITEMS_PER_PAGE, (nextPage + 1) * ITEMS_PER_PAGE);
-        const selectRow = new ActionRowBuilder().addComponents({
-          type: 3,
-          custom_id: 'sell_select',
-          min_values: 1,
-          max_values: Math.min(pagedOptions.length, 10),
-          options: pagedOptions
-        });
-        let buttonRow = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId('sell_page_' + (nextPage - 1))
-            .setLabel('Previous')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(nextPage === 0),
-          new ButtonBuilder()
-            .setCustomId('sell_page_' + (nextPage + 1))
-            .setLabel('Next')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(nextPage === totalPages - 1)
-        );
-        await i.update({
-          content: `Select items to sell: (Page ${nextPage + 1} of ${totalPages})`,
-          components: [selectRow, buttonRow],
-          ephemeral: true
-        });
+      await interaction.reply({
+        content: 'Select a category to sell from:',
+        components: [catRow],
+        ephemeral: true
       });
+      return;
     }
-  },
-
-  async handleSelect(interaction) {
+    // Show items in the selected category
     const userId = interaction.user.id;
     let characters = loadCharacters();
     let character = characters[userId];
@@ -152,64 +53,113 @@ module.exports = {
       await interaction.reply({ content: 'You have no inventory to sell from!', ephemeral: true });
       return;
     }
-    const equipped = character.equipment ? Object.values(character.equipment) : [];
-    // Parse selected values to get index and instance
-    const selectedIndices = interaction.values.map(val => {
-      const [idxStr, instanceStr] = val.split('_');
-      return { idx: parseInt(idxStr, 10), instance: parseInt(instanceStr, 10) };
+    // Filter count:1 items by category
+    const items = character.inventory.map((item, idx) => ({...item, __invIdx: idx}))
+      .filter(item => {
+        if (!item || typeof item !== 'object') return false;
+        const count = item.count || 1;
+        if (count !== 1) return false;
+        if (/gold/i.test(item.name)) return false;
+        return item.type === categoryArg;
+      });
+    if (!items.length) {
+      await interaction.reply({
+        content: `You have no ${categoryArg.toLowerCase()}s to sell!`,
+        components: [],
+        ephemeral: true
+      });
+      return;
+    }
+    // Build options for select menu
+    const options = items.map(item => ({
+      label: `${item.name} - ${item.price || 10} Gold`,
+      value: String(item.__invIdx),
+      description: item.name.length < 90 ? item.name : item.name.slice(0, 90)
+    }));
+    const { components, currentPage, totalPages, content } = paginateSelectMenu({
+      choices: options,
+      page,
+      selectCustomId: `sell_item_${categoryArg}`,
+      buttonCustomIdPrefix: `sell_page_${categoryArg}_`,
+      placeholder: `Select one or more ${categoryArg.toLowerCase()}s to sell`,
+      minValues: 1,
+      maxValues: 10,
+      contentPrefix: `Select one or more ${categoryArg.toLowerCase()}s to sell:`
     });
-    // Group by idx to count how many times each is sold
-    const sellCounts = {};
-    for (const sel of selectedIndices) {
-      sellCounts[sel.idx] = (sellCounts[sel.idx] || 0) + 1;
-    }
-    let totalGold = 0;
-    let soldItems = [];
-    for (const [idxStr, times] of Object.entries(sellCounts)) {
-      const idx = parseInt(idxStr, 10);
-      const item = character.inventory[idx];
-      if (!item) {
-        soldItems.push(`⚠️ Could not find item at inventory index ${idx}.`);
-        continue;
-      }
-      let name = typeof item === 'string' ? item : item.name;
-      if (!name) {
-        soldItems.push(`⚠️ Item at inventory index ${idx} has no name and cannot be sold.`);
-        continue;
-      }
-      if (/gold/i.test(name)) {
-        soldItems.push(`⚠️ Cannot sell gold: **${name}**`);
-        continue;
-      }
-      let price = (typeof item === 'object' && item.price) ? item.price : 10;
-      let count = (typeof item === 'object' && item.count) ? item.count : 1;
-      if (count > times && !item.slot && !item.uses) {
-        item.count -= times;
-        character.inventory[idx] = item;
-        soldItems.push(`✅ Sold **${name}** x${times} for ${price * times} Gold (Remaining: ${item.count})`);
-        totalGold += price * times;
-      } else {
-        soldItems.push(`✅ Sold **${name}** x${count} for ${price * count} Gold`);
-        totalGold += price * count;
-        character.inventory.splice(idx, 1);
-      }
-    }
-    // Add gold to the single gold entry in inventory
-    if (totalGold > 0) {
-      let goldIdx = character.inventory.findIndex(i => typeof i === 'object' && i.name === 'Gold');
-      if (goldIdx !== -1) {
-        character.inventory[goldIdx].count = (character.inventory[goldIdx].count || 0) + totalGold;
-      } else {
-        character.inventory.unshift({ name: 'Gold', count: totalGold, rarity: 'common', price: 1 });
-      }
-    }
-    characters[userId] = character;
-    saveCharacters(characters);
-    await interaction.update({
-      content: soldItems.join('\n') + (totalGold > 0 ? `\nYou received ${totalGold} Gold!` : ''),
-      components: [],
+    await interaction.reply({
+      content,
+      components,
       ephemeral: true
     });
+    return;
+  },
+  async handleSelect(interaction) {
+    const paginateSelectMenu = require('../paginateSelectMenu');
+    const userId = interaction.user.id;
+    let characters = loadCharacters();
+    let character = characters[userId];
+    if (!character || !Array.isArray(character.inventory)) {
+      await interaction.reply({ content: 'You have no inventory to sell from!', ephemeral: true });
+      return;
+    }
+    // Step 1: Category selection
+    if (interaction.customId === 'sell_category') {
+      const category = interaction.values[0];
+      // Show first page of items in category
+      await module.exports.execute(interaction, 0, category);
+      return;
+    }
+    // Pagination for item select menu
+    if (/^sell_page_([A-Za-z]+)_/.test(interaction.customId)) {
+      const match = interaction.customId.match(/^sell_page_([A-Za-z]+)_(\d+)$/);
+      if (!match) {
+        await interaction.reply({ content: 'Invalid page navigation.', ephemeral: true });
+        return;
+      }
+      const category = match[1];
+      const page = parseInt(match[2], 10);
+      await module.exports.execute(interaction, page, category);
+      return;
+    }
+    // Step 2: Item selection
+    if (/^sell_item_([A-Za-z]+)/.test(interaction.customId)) {
+      const match = interaction.customId.match(/^sell_item_([A-Za-z]+)/);
+      const category = match ? match[1] : null;
+      if (!category) {
+        await interaction.reply({ content: 'Invalid item selection.', ephemeral: true });
+        return;
+      }
+      const addGoldToInventory = require('../addGoldToInventory');
+      let soldItems = [];
+      let totalGold = 0;
+      // Sort indices descending so splicing doesn't affect subsequent indices
+      const selectedIndices = interaction.values.map(Number).sort((a, b) => b - a);
+      for (const invIdx of selectedIndices) {
+        const item = character.inventory[invIdx];
+        if (!item || typeof item !== 'object' || (item.count || 1) !== 1 || /gold/i.test(item.name)) {
+          continue;
+        }
+        const price = item.price || 10;
+        soldItems.push(`**${item.name}** for ${price} Gold`);
+        totalGold += price;
+        character.inventory.splice(invIdx, 1);
+      }
+      if (soldItems.length === 0) {
+        await interaction.update({ content: 'No valid items were selected to sell.', components: [], ephemeral: true });
+        return;
+      }
+      addGoldToInventory(character.inventory, totalGold);
+      characters[userId] = character;
+      saveCharacters(characters);
+      await interaction.update({
+        content: `✅ Sold ${soldItems.join(', ')}!\nTotal Gold Earned: ${totalGold}`,
+        components: [],
+        ephemeral: true
+      });
+      return;
+    }
+    // Fallback
+    await interaction.reply({ content: 'Invalid selection.', ephemeral: true });
   }
 };
 
