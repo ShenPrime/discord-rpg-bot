@@ -30,7 +30,14 @@ module.exports = {
       return;
     }
     // Get equipped items for labeling
-    const equipped = character.equipment ? Object.values(character.equipment) : [];
+    const equippedCounts = {};
+    if (character.equipment) {
+      for (const eq of Object.values(character.equipment)) {
+        if (eq && eq !== 'Gold') {
+          equippedCounts[eq] = (equippedCounts[eq] || 0) + 1;
+        }
+      }
+    }
     // Build select menu options, skipping gold
     // Pagination for select menu
     const ITEMS_PER_PAGE = 25;
@@ -42,21 +49,26 @@ module.exports = {
       page = interaction.options.getInteger('page') - 1;
     }
     // Build options with index
-    const allOptions = character.inventory
-      .map((item, idx) => {
-        let name = typeof item === 'string' ? item : item.name;
-        if (/gold/i.test(name)) return null; // skip gold
-        if (equipped.includes(name)) return null; // skip equipped
-        let label = name;
-        // Attempt to get price
-        let price = (typeof item === 'object' && item.price) ? item.price : 10; // fallback price
-        return {
-          label: `${label} - ${price} Gold`,
-          value: idx.toString(),
-          description: label.length < 90 ? label : label.slice(0, 90)
-        };
-      })
-      .filter(Boolean);
+    // Unpack stackable items into individual, unequipped entries
+    const allOptions = [];
+    character.inventory.forEach((item, idx) => {
+      let name = typeof item === 'string' ? item : item.name;
+      if (/gold/i.test(name)) return; // skip gold
+      let price = (typeof item === 'object' && item.price) ? item.price : 10;
+      let count = (typeof item === 'object' && item.count) ? item.count : 1;
+      let equippedCount = equippedCounts[name] || 0;
+      let unequippedCount = count - equippedCount;
+      // For stackables, add one entry per unequipped instance, with unique value
+      if (unequippedCount > 0) {
+        for (let i = 0; i < unequippedCount; i++) {
+          allOptions.push({
+            label: `${name} - ${price} Gold`,
+            value: `${idx}_${i}`,
+            description: name.length < 90 ? name : name.slice(0, 90)
+          });
+        }
+      }
+    });
     const totalPages = Math.ceil(allOptions.length / ITEMS_PER_PAGE) || 1;
     if (page < 0) page = 0;
     if (page >= totalPages) page = totalPages - 1;
@@ -141,28 +153,55 @@ module.exports = {
       return;
     }
     const equipped = character.equipment ? Object.values(character.equipment) : [];
-    const selected = interaction.values.map(idx => parseInt(idx, 10)).sort((a, b) => b - a); // sort descending for safe splicing
+    // Parse selected values to get index and instance
+    const selectedIndices = interaction.values.map(val => {
+      const [idxStr, instanceStr] = val.split('_');
+      return { idx: parseInt(idxStr, 10), instance: parseInt(instanceStr, 10) };
+    });
+    // Group by idx to count how many times each is sold
+    const sellCounts = {};
+    for (const sel of selectedIndices) {
+      sellCounts[sel.idx] = (sellCounts[sel.idx] || 0) + 1;
+    }
     let totalGold = 0;
     let soldItems = [];
-    for (const idx of selected) {
+    for (const [idxStr, times] of Object.entries(sellCounts)) {
+      const idx = parseInt(idxStr, 10);
       const item = character.inventory[idx];
+      if (!item) {
+        soldItems.push(`⚠️ Could not find item at inventory index ${idx}.`);
+        continue;
+      }
       let name = typeof item === 'string' ? item : item.name;
+      if (!name) {
+        soldItems.push(`⚠️ Item at inventory index ${idx} has no name and cannot be sold.`);
+        continue;
+      }
       if (/gold/i.test(name)) {
         soldItems.push(`⚠️ Cannot sell gold: **${name}**`);
         continue;
       }
-      if (equipped.includes(name)) {
-        soldItems.push(`❌ **${name}** (equipped, not sold)`);
-        continue;
-      }
       let price = (typeof item === 'object' && item.price) ? item.price : 10;
-      totalGold += price;
-      soldItems.push(`✅ Sold **${name}** for ${price} Gold`);
-      character.inventory.splice(idx, 1);
+      let count = (typeof item === 'object' && item.count) ? item.count : 1;
+      if (count > times && !item.slot && !item.uses) {
+        item.count -= times;
+        character.inventory[idx] = item;
+        soldItems.push(`✅ Sold **${name}** x${times} for ${price * times} Gold (Remaining: ${item.count})`);
+        totalGold += price * times;
+      } else {
+        soldItems.push(`✅ Sold **${name}** x${count} for ${price * count} Gold`);
+        totalGold += price * count;
+        character.inventory.splice(idx, 1);
+      }
     }
-    // Add gold as a new inventory item
+    // Add gold to the single gold entry in inventory
     if (totalGold > 0) {
-      character.inventory.push({ name: `${totalGold} Gold`, rarity: 'common', price: totalGold });
+      let goldIdx = character.inventory.findIndex(i => typeof i === 'object' && i.name === 'Gold');
+      if (goldIdx !== -1) {
+        character.inventory[goldIdx].count = (character.inventory[goldIdx].count || 0) + totalGold;
+      } else {
+        character.inventory.unshift({ name: 'Gold', count: totalGold, rarity: 'common', price: 1 });
+      }
     }
     characters[userId] = character;
     saveCharacters(characters);

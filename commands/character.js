@@ -8,11 +8,28 @@ function loadCharacters() {
   if (!fs.existsSync(CHARACTERS_FILE)) return {};
   try {
     const data = fs.readFileSync(CHARACTERS_FILE, 'utf-8');
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    // Normalize all inventories: ensure every item except gold has a count property
+    for (const charId in parsed) {
+      const character = parsed[charId];
+      if (Array.isArray(character.inventory)) {
+        character.inventory = character.inventory.map(item => {
+          if (typeof item === 'object' && item.name && item.name !== 'Gold') {
+            if (!Object.prototype.hasOwnProperty.call(item, 'count')) {
+              return { ...item, count: 1 };
+            }
+          }
+          return item;
+        });
+      }
+    }
+    return parsed;
   } catch (e) {
     return {};
   }
 }
+
+module.exports.loadCharacters = loadCharacters;
 
 function saveCharacters(characters) {
   fs.writeFileSync(CHARACTERS_FILE, JSON.stringify(characters, null, 2));
@@ -81,11 +98,22 @@ Stats gained: STR +${strUp}, DEF +${defUp}, AGI +${agiUp}, LUCK +${luckUp}`,
           }
         }
       }
+      // Add temporary boosts from activeEffects
+      let tempStats = { strength: 0, defense: 0, agility: 0, luck: 0 };
+      let tempEffects = [];
+      if (character.activeEffects && Array.isArray(character.activeEffects)) {
+        for (const effect of character.activeEffects) {
+          if (tempStats.hasOwnProperty(effect.stat)) {
+            tempStats[effect.stat] += effect.boost;
+            tempEffects.push(`+${effect.boost} ${effect.stat} (${effect.usesLeft} uses left)`);
+          }
+        }
+      }
       const totalStats = {
-        strength: baseStats.strength + (eqStats.strength || 0),
-        defense: baseStats.defense + (eqStats.defense || 0),
-        agility: baseStats.agility + (eqStats.agility || 0),
-        luck: baseStats.luck + (eqStats.luck || 0)
+        strength: baseStats.strength + (eqStats.strength || 0) + (tempStats.strength || 0),
+        defense: baseStats.defense + (eqStats.defense || 0) + (tempStats.defense || 0),
+        agility: baseStats.agility + (eqStats.agility || 0) + (tempStats.agility || 0),
+        luck: baseStats.luck + (eqStats.luck || 0) + (tempStats.luck || 0)
       };
 
       await interaction.reply({
@@ -99,9 +127,18 @@ Stats gained: STR +${strUp}, DEF +${defUp}, AGI +${agiUp}, LUCK +${luckUp}`,
             { name: 'Stats', value: `STR: ${baseStats.strength} | DEF: ${baseStats.defense} | AGI: ${baseStats.agility} | LUCK: ${baseStats.luck}` },
             { name: 'Equipment', value: eqList.length ? eqList.join('\n') : 'None', inline: false },
             { name: 'Total Stats', value: `STR: ${totalStats.strength} | DEF: ${totalStats.defense} | AGI: ${totalStats.agility} | LUCK: ${totalStats.luck}` },
+            ...(tempEffects.length ? [{
+              name: 'Temporary Effects',
+              value: tempEffects.join('\n'),
+              inline: false
+            }] : []),
             ...(character.house ? [{
               name: '🏠 House',
               value: `**${character.house.name}** (${character.house.size})\n${character.house.description}`
+            }] : []),
+            ...(character.mount ? [{
+              name: '🐎 Mount',
+              value: `**${character.mount.name}**\n${character.mount.description}`
             }] : [])
           ],
           color: 0x00ff99,

@@ -3,66 +3,115 @@
 
 const lootTable = [
   // Gems
-  { name: 'Citrine', type: 'Gem', rarity: 'uncommon', price: 55, chance: 0.04 },
-  { name: 'Onyx', type: 'Gem', rarity: 'uncommon', price: 70, chance: 0.04 },
-  { name: 'Opal', type: 'Gem', rarity: 'uncommon', price: 90, chance: 0.04 },
-  { name: 'Topaz', type: 'Gem', rarity: 'uncommon', price: 60, chance: 0.04 },
-  { name: 'Amethyst', type: 'Gem', rarity: 'uncommon', price: 80, chance: 0.04 },
-  { name: 'Pearl', type: 'Gem', rarity: 'rare', price: 100, chance: 0.02 },
-  { name: 'Sapphire', type: 'Gem', rarity: 'rare', price: 110, chance: 0.02 },
-  { name: 'Ruby', type: 'Gem', rarity: 'rare', price: 120, chance: 0.02 },
-  { name: 'Emerald', type: 'Gem', rarity: 'rare', price: 130, chance: 0.02 },
-  { name: 'Diamond', type: 'Gem', rarity: 'epic', price: 300, chance: 0.008 },
+  { name: 'Citrine', type: 'Gem', rarity: 'uncommon', price: 55, chance: 0.5 },
+  { name: 'Onyx', type: 'Gem', rarity: 'uncommon', price: 70, chance: 0.07 },
+  { name: 'Opal', type: 'Gem', rarity: 'uncommon', price: 90, chance: 0.07 },
+  { name: 'Topaz', type: 'Gem', rarity: 'uncommon', price: 60, chance: 0.07 },
+  { name: 'Amethyst', type: 'Gem', rarity: 'uncommon', price: 80, chance: 0.07 },
+  { name: 'Pearl', type: 'Gem', rarity: 'rare', price: 100, chance: 0.015 },
+  { name: 'Sapphire', type: 'Gem', rarity: 'rare', price: 110, chance: 0.015 },
+  { name: 'Ruby', type: 'Gem', rarity: 'rare', price: 120, chance: 0.03 },
+  { name: 'Emerald', type: 'Gem', rarity: 'rare', price: 130, chance: 0.03 },
+  { name: 'Diamond', type: 'Gem', rarity: 'epic', price: 1000, chance: 0.001 },
+
 
   // Weapons
-  { name: 'Rusty Sword', type: 'Weapon', slot: 'weapon', rarity: 'common', price: 20, stats: { strength: 1 }, chance: 0.8 },
-  { name: 'Spear', type: 'Weapon', slot: 'weapon', rarity: 'common', price: 25, stats: { strength: 1, agility: 1 }, chance: 0.8 },
-  { name: 'Axe', type: 'Weapon', slot: 'weapon', rarity: 'uncommon', price: 50, stats: { strength: 2 }, chance: 0.04 },
-  { name: 'Dagger', type: 'Weapon', slot: 'weapon', rarity: 'uncommon', price: 45, stats: { agility: 2 }, chance: 0.04 },
-  { name: 'Warhammer', type: 'Weapon', slot: 'weapon', rarity: 'rare', price: 280, stats: { strength: 4 }, chance: 0.02 },
-  { name: 'Bow', type: 'Weapon', slot: 'weapon', rarity: 'rare', price: 220, stats: { agility: 3 }, chance: 0.02 },
-  { name: 'Flaming Sword', type: 'Weapon', slot: 'weapon', rarity: 'epic', price: 500, stats: { strength: 5, luck: 1 }, chance: 0.008 },
-  { name: 'Shadow Blade', type: 'Weapon', slot: 'weapon', rarity: 'epic', price: 600, stats: { agility: 6, luck: 2 }, chance: 0.008 },
-  { name: 'Excalibur', type: 'Weapon', slot: 'weapon', rarity: 'legendary', price: 2000, stats: { strength: 10, luck: 3 }, chance: 0.002 },
-  { name: 'Celestial Staff', type: 'Weapon', slot: 'weapon', rarity: 'legendary', price: 3000, stats: { strength: 5, agility: 5, luck: 5 }, chance: 0.002 },
+  { name: 'Bronze Sword', type: 'Weapon', slot: 'weapon', rarity: 'common', price: 15, stats: { strength: 1 }, chance: 0.25 },
+  { name: 'Bronze Spear', type: 'Weapon', slot: 'weapon', rarity: 'common', price: 20, stats: { strength: 1, agility: 1 }, chance: 0.22 },
+  { name: 'Bronze Axe', type: 'Weapon', slot: 'weapon', rarity: 'common', price: 18, stats: { strength: 1 }, chance: 0.22 },
+  { name: 'Bronze Dagger', type: 'Weapon', slot: 'weapon', rarity: 'common', price: 12, stats: { agility: 1 }, chance: 0.22 },
+
+  { name: 'Iron Axe', type: 'Weapon', slot: 'weapon', rarity: 'uncommon', price: 50, stats: { strength: 2 }, chance: 0.04 },
+  { name: 'Iron Dagger', type: 'Weapon', slot: 'weapon', rarity: 'uncommon', price: 45, stats: { agility: 2 }, chance: 0.012 },
+  { name: 'Iron Sword', type: 'Weapon', slot: 'weapon', rarity: 'uncommon', price: 55, stats: { strength: 2 }, chance: 0.012 },
+  { name: 'Iron Mace', type: 'Weapon', slot: 'weapon', rarity: 'uncommon', price: 60, stats: { strength: 3 }, chance: 0.012 },
+
+  { name: 'Warhammer', type: 'Weapon', slot: 'weapon', rarity: 'rare', price: 280, stats: { strength: 4 }, chance: 0.007 },
+  { name: 'Bow', type: 'Weapon', slot: 'weapon', rarity: 'rare', price: 220, stats: { agility: 3 }, chance: 0.007 },
+  { name: 'Steel Axe', type: 'Weapon', slot: 'weapon', rarity: 'rare', price: 300, stats: { strength: 5 }, chance: 0.007 },
+  { name: 'Steel Dagger', type: 'Weapon', slot: 'weapon', rarity: 'rare', price: 250, stats: { agility: 4 }, chance: 0.007 },
+  { name: 'Steel Sword', type: 'Weapon', slot: 'weapon', rarity: 'rare', price: 320, stats: { strength: 5 }, chance: 0.007 },
+  { name: 'Steel Mace', type: 'Weapon', slot: 'weapon', rarity: 'rare', price: 340, stats: { strength: 5 }, chance: 0.007 },
+
+  { name: 'Flaming Sword', type: 'Weapon', slot: 'weapon', rarity: 'epic', price: 2000, stats: { strength: 7, luck: 2 }, chance: 0.002 },
+  { name: 'Shadow Blade', type: 'Weapon', slot: 'weapon', rarity: 'epic', price: 3000, stats: { agility: 8, luck: 1 }, chance: 0.002 },
+  { name: 'Dragon Mace', type: 'Weapon', slot: 'weapon', rarity: 'epic', price: 4000, stats: { strength: 9, defense: 2 }, chance: 0.002 },
+  { name: 'Dragon Axe', type: 'Weapon', slot: 'weapon', rarity: 'epic', price: 4500, stats: { strength: 7, agility: 5 }, chance: 0.002 },
+  { name: 'Dragon Dagger', type: 'Weapon', slot: 'weapon', rarity: 'epic', price: 5000, stats: { agility: 9, luck: 2 }, chance: 0.002 },
+  { name: 'Dragon Sword', type: 'Weapon', slot: 'weapon', rarity: 'epic', price: 5500, stats: { strength: 6, agility: 6 }, chance: 0.002 },
+
+  { name: 'Excalibur', type: 'Weapon', slot: 'weapon', rarity: 'legendary', price: 10000, stats: { strength: 10, luck: 3 }, chance: 0.0002 },
+  { name: 'Celestial Staff', type: 'Weapon', slot: 'weapon', rarity: 'legendary', price: 15000, stats: { strength: 5, agility: 5, luck: 5 }, chance: 0.0002 },
+
 
   // Armor
   { name: 'Leather Armor', type: 'Armor', slot: 'chest', rarity: 'common', price: 50, stats: { defense: 1 }, chance: 0.18 },
-  { name: 'Iron Helmet', type: 'Armor', slot: 'head', rarity: 'common', price: 30, stats: { defense: 1 }, chance: 0.18 },
-  { name: 'Chainmail', type: 'Armor', slot: 'chest', rarity: 'uncommon', price: 100, stats: { defense: 3 }, chance: 0.04 },
-  { name: 'Shield', type: 'Armor', slot: 'arms', rarity: 'uncommon', price: 90, stats: { defense: 2 }, chance: 0.04 },
-  { name: 'Boots of Swiftness', type: 'Armor', slot: 'legs', rarity: 'rare', price: 250, stats: { agility: 2 }, chance: 0.02 },
-  { name: 'Amulet of Protection', type: 'Armor', slot: 'necklace', rarity: 'epic', price: 600, stats: { defense: 5 }, chance: 0.008 },
-  { name: 'Dragon Scale Armor', type: 'Armor', slot: 'chest', rarity: 'epic', price: 800, stats: { defense: 7, luck: 2 }, chance: 0.008 },
-  { name: 'Cloak of Invisibility', type: 'Armor', slot: 'chest', rarity: 'legendary', price: 4000, stats: { agility: 5, luck: 5 }, chance: 0.002 },
-  { name: 'Ring of Power', type: 'Armor', slot: 'ring', rarity: 'legendary', price: 6000, stats: { strength: 3, defense: 3, agility: 3, luck: 3 }, chance: 0.002 },
+  { name: 'Leather Helmet', type: 'Armor', slot: 'head', rarity: 'common', price: 30, stats: { defense: 1 }, chance: 0.16 },
+  { name: 'Leather Boots', type: 'Armor', slot: 'legs', rarity: 'common', price: 30, stats: { agility: 1 }, chance: 0.16 },
+  { name: 'Leather Cape', type: 'Armor', slot: 'necklace', rarity: 'common', price: 20, stats: { defense: 1 }, chance: 0.13 },
+  { name: 'Iron Ring', type: 'Armor', slot: 'ring', rarity: 'common', price: 15, stats: { strength: 1 }, chance: 0.13 },
+
+  { name: 'Iron Chainmail', type: 'Armor', slot: 'chest', rarity: 'uncommon', price: 100, stats: { defense: 3 }, chance: 0.025 },
+  { name: 'Iron Shield', type: 'Armor', slot: 'arms', rarity: 'uncommon', price: 90, stats: { defense: 2 }, chance: 0.025 },
+  { name: 'Iron Gauntlets', type: 'Armor', slot: 'arms', rarity: 'uncommon', price: 70, stats: { strength: 2 }, chance: 0.025 },
+  { name: 'Iron Leggings', type: 'Armor', slot: 'legs', rarity: 'uncommon', price: 80, stats: { agility: 2 }, chance: 0.025 },
+  { name: 'Gold Necklace', type: 'Armor', slot: 'necklace', rarity: 'uncommon', price: 50, stats: { luck: 1 }, chance: 0.025 },
+  { name: 'Silver Ring', type: 'Armor', slot: 'ring', rarity: 'uncommon', price: 30, stats: { agility: 1 }, chance: 0.025 },
+
+  { name: 'Steel Leggings', type: 'Armor', slot: 'legs', rarity: 'rare', price: 1500, stats: { agility: 2 }, chance: 0.006 },
+  { name: 'Steel Boots', type: 'Armor', slot: 'legs', rarity: 'rare', price: 1800, stats: { agility: 3 }, chance: 0.006 },
+  { name: 'Steel Gauntlets', type: 'Armor', slot: 'arms', rarity: 'rare', price: 2000, stats: { strength: 3 }, chance: 0.006 },
+  { name: 'Steel Armor', type: 'Armor', slot: 'chest', rarity: 'rare', price: 2200, stats: { defense: 4 }, chance: 0.006 },
+  { name: 'Emerald Ring', type: 'Armor', slot: 'ring', rarity: 'rare', price: 1500, stats: { agility: 2 }, chance: 0.006 },
+  { name: 'Ruby Necklace', type: 'Armor', slot: 'necklace', rarity: 'rare', price: 1500, stats: { agility: 2 }, chance: 0.006 },
+
+  { name: 'Amulet of Vigor', type: 'Armor', slot: 'necklace', rarity: 'epic', price: 15000, stats: { defense: 5 }, chance: 0.002 },
+  { name: 'Dragon Scale Breastplate', type: 'Armor', slot: 'chest', rarity: 'epic', price: 25000, stats: { defense: 7, luck: 2 }, chance: 0.002 },
+  { name: 'Heroic Plate Helmet', type: 'Armor', slot: 'head', rarity: 'epic', price: 20000, stats: { defense: 5 }, chance: 0.002 },
+  { name: 'Heroic Plate Greaves', type: 'Armor', slot: 'legs', rarity: 'epic', price: 20000, stats: { defense: 5 }, chance: 0.002 },
+
+  { name: 'Cloak of Invisibility', type: 'Armor', slot: 'necklace', rarity: 'legendary', price: 100000, stats: { agility: 5, luck: 5 }, chance: 0.0002 },
+  { name: 'Ring of Power', type: 'Armor', slot: 'ring', rarity: 'legendary', price: 6000, stats: { strength: 3, defense: 3, agility: 3, luck: 3 }, chance: 0.0002 },
+
 
   // Potions
-  { name: 'Common Strength Potion', type: 'Potion', rarity: 'common', price: 50, uses: 1, stat: 'strength', boost: 2, chance: 0.18 },
-  { name: 'Common Agility Potion', type: 'Potion', rarity: 'common', price: 50, uses: 1, stat: 'agility', boost: 2, chance: 0.18 },
-  { name: 'Common Defense Potion', type: 'Potion', rarity: 'common', price: 60, uses: 1, stat: 'defense', boost: 2, chance: 0.18 },
-  { name: 'Rare Strength Potion', type: 'Potion', rarity: 'rare', price: 150, uses: 2, stat: 'strength', boost: 3, chance: 0.02 },
-  { name: 'Rare Agility Potion', type: 'Potion', rarity: 'rare', price: 150, uses: 2, stat: 'agility', boost: 3, chance: 0.02 },
-  { name: 'Rare Defense Potion', type: 'Potion', rarity: 'rare', price: 180, uses: 2, stat: 'defense', boost: 3, chance: 0.02 },
-  { name: 'Rare Fortune Potion', type: 'Potion', rarity: 'rare', price: 180, uses: 2, stat: 'luck', boost: 2, chance: 0.02 },
-  { name: 'Epic Strength Potion', type: 'Potion', rarity: 'epic', price: 400, uses: 4, stat: 'strength', boost: 5, chance: 0.008 },
-  { name: 'Epic Agility Potion', type: 'Potion', rarity: 'epic', price: 400, uses: 4, stat: 'agility', boost: 5, chance: 0.008 },
-  { name: 'Epic Defense Potion', type: 'Potion', rarity: 'epic', price: 450, uses: 4, stat: 'defense', boost: 5, chance: 0.008 },
-  { name: 'Epic Fortune Potion', type: 'Potion', rarity: 'epic', price: 550, uses: 4, stat: 'luck', boost: 4, chance: 0.008 },
-  { name: 'Legendary Resurrection Elixir', type: 'Potion', rarity: 'legendary', price: 1500, uses: 1, stat: 'revive', boost: 0, chance: 0.002 },
+  { name: 'Common Strength Potion', type: 'Potion', rarity: 'common', price: 2500, uses: 1, stat: 'strength', boost: 2, chance: 0.12 },
+  { name: 'Common Agility Potion', type: 'Potion', rarity: 'common', price: 2500, uses: 1, stat: 'agility', boost: 2, chance: 0.12 },
+  { name: 'Common Defense Potion', type: 'Potion', rarity: 'common', price: 3000, uses: 1, stat: 'defense', boost: 2, chance: 0.12 },
+
+  { name: 'Rare Strength Potion', type: 'Potion', rarity: 'rare', price: 15000, uses: 2, stat: 'strength', boost: 3, chance: 0.006 },
+  { name: 'Rare Agility Potion', type: 'Potion', rarity: 'rare', price: 15000, uses: 2, stat: 'agility', boost: 3, chance: 0.006 },
+  { name: 'Rare Defense Potion', type: 'Potion', rarity: 'rare', price: 18000, uses: 2, stat: 'defense', boost: 3, chance: 0.006 },
+  { name: 'Rare Fortune Potion', type: 'Potion', rarity: 'rare', price: 18000, uses: 2, stat: 'luck', boost: 2, chance: 0.006 },
+
+  { name: 'Epic Strength Potion', type: 'Potion', rarity: 'epic', price: 40000, uses: 4, stat: 'strength', boost: 5, chance: 0.001 },
+  { name: 'Epic Agility Potion', type: 'Potion', rarity: 'epic', price: 40000, uses: 4, stat: 'agility', boost: 5, chance: 0.001 },
+  { name: 'Epic Defense Potion', type: 'Potion', rarity: 'epic', price: 45000, uses: 4, stat: 'defense', boost: 5, chance: 0.001 },
+  { name: 'Epic Fortune Potion', type: 'Potion', rarity: 'epic', price: 55000, uses: 4, stat: 'luck', boost: 4, chance: 0.001 },
+
+  { name: 'Legendary Resurrection Elixir', type: 'Potion', rarity: 'legendary', price: 1500, uses: 1, stat: 'revive', boost: 0, chance: 0.0002 },
+
 
   // Currency
-  { name: '20 Gold', type: 'currency', rarity: 'common', amount: 20, chance: 0.2 },
-  { name: '50 Gold', type: 'currency', rarity: 'uncommon', amount: 50, chance: 0.08 },
-  { name: '100 Gold', type: 'currency', rarity: 'rare', amount: 100, chance: 0.02 },
-  { name: '300 Gold', type: 'currency', rarity: 'epic', amount: 300, chance: 0.008 },
-  { name: '600 Gold', type: 'currency', rarity: 'legendary', amount: 600, chance: 0.002 },
+  { name: '20 Gold', type: 'currency', rarity: 'common', amount: 20, chance: 0.12 },
+  { name: '50 Gold', type: 'currency', rarity: 'uncommon', amount: 50, chance: 0.06 },
+  { name: '100 Gold', type: 'currency', rarity: 'rare', amount: 100, chance: 0.008 },
+  { name: '300 Gold', type: 'currency', rarity: 'epic', amount: 300, chance: 0.002 },
+  { name: '600 Gold', type: 'currency', rarity: 'legendary', amount: 600, chance: 0.001 },
 ];
 
 // Exploration table array
-const exploreTable = lootTable.filter(item => (item.type === 'currency' || item.type === 'Gem' || (item.type === 'Weapon' && item.rarity !== 'rare' && item.rarity !== 'epic') || (item.type === 'Armor' && item.rarity !== 'rare' && item.rarity !== 'epic')));
+const exploreTable = lootTable.filter(item => (
+  item.type === 'currency' ||
+  (item.type === 'Gem' && (item.rarity === 'common' || item.rarity === 'uncommon')) ||
+  ((item.type === 'Weapon' || item.type === 'Armor') && (item.rarity === 'common' || item.rarity === 'uncommon'))
+));
 
-const fightTable = lootTable.filter(item => (item.type === 'currency' || item.type === 'Gem' || (item.type === 'Weapon' && item.rarity === 'rare') || (item.type === 'Armor' && item.rarity === 'rare')));
+const fightTable = lootTable.filter(item => (
+  item.type === 'currency' ||
+  item.type === 'Gem' ||
+  ((item.type === 'Weapon' || item.type === 'Armor') && (item.rarity === 'common' || item.rarity === 'uncommon' || item.rarity === 'rare'))
+));
 
 
 //shop table array for houses 

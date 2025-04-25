@@ -1,5 +1,6 @@
 // commands/fight.js
 const { SlashCommandBuilder } = require('discord.js');
+const mergeOrAddInventoryItem = require('../mergeOrAddInventoryItem');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -7,18 +8,7 @@ module.exports = {
     .setDescription('Engage in a quick battle!'),
   async execute(interaction) {
     // Load user character
-    const fs = require('fs');
-    const path = require('path');
-    const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
-    function loadCharacters() {
-      if (!fs.existsSync(CHARACTERS_FILE)) return {};
-      try {
-        const data = fs.readFileSync(CHARACTERS_FILE, 'utf-8');
-        return JSON.parse(data);
-      } catch (e) {
-        return {};
-      }
-    }
+    const { loadCharacters, saveCharacters } = require('../characterUtils');
     let characters = loadCharacters();
     const userId = interaction.user.id;
     let character = characters[userId];
@@ -27,10 +17,19 @@ module.exports = {
       return;
     }
     // Stat-based outcome
-    const str = character.stats?.strength || 2;
-    const agi = character.stats?.agility || 2;
-    const def = character.stats?.defense || 2;
-    const luck = character.stats?.luck || 2;
+    // Apply temporary stat boosts from activeEffects
+    let str = character.stats?.strength || 2;
+    let agi = character.stats?.agility || 2;
+    let def = character.stats?.defense || 2;
+    let luck = character.stats?.luck || 2;
+    if (character.activeEffects && Array.isArray(character.activeEffects)) {
+      for (const effect of character.activeEffects) {
+        if (effect.stat === 'strength') str += effect.boost;
+        if (effect.stat === 'agility') agi += effect.boost;
+        if (effect.stat === 'defense') def += effect.boost;
+        if (effect.stat === 'luck') luck += effect.boost;
+      }
+    }
     // Win chance: 40% + 3% per STR, 2% per AGI (max 90%)
     const winChance = Math.min(0.4 + str * 0.03 + agi * 0.02, 0.9);
     // Draw chance: 15% + 3% per DEF (max 60%)
@@ -39,33 +38,9 @@ module.exports = {
     const critChance = Math.min(luck * 0.05, 0.5);
     const roll = Math.random();
     let outcome, reason, xpGained = 0, loot = null, lootMsg = '', levelUpMsg = '';
-    // Weighted random item helper
-    function weightedRandomItem(items) {
-      const total = items.reduce((sum, item) => sum + item.chance, 0);
-      let r = Math.random() * total;
-      for (const item of items) {
-        if (r < item.chance) return item;
-        r -= item.chance;
-      }
-      return items[items.length - 1]; // Fallback
-    }
     // Use centralized loot table
     const { lootTable } = require('./loot');
-    // Helper: filter loot by type
-    function getLootByType(type) {
-      return lootTable.filter(item => (item.type || item.category) && (item.type || item.category).toLowerCase() === type.toLowerCase());
-    }
-    // Helper: weighted random item
-    function weightedRandomItem(items) {
-      if (!items.length) return null;
-      const total = items.reduce((sum, item) => sum + (item.chance || 1), 0);
-      let r = Math.random() * total;
-      for (const item of items) {
-        if (r < (item.chance || 1)) return item;
-        r -= (item.chance || 1);
-      }
-      return items[items.length - 1];
-    }
+    const { getLootByType, weightedRandomItem } = require('../lootUtils');
     if (roll < critChance) {
       outcome = 'Critical hit! You won effortlessly.';
       reason = `Your luck (${luck}) paid off!`;
@@ -94,8 +69,11 @@ module.exports = {
         } else {
           lootType = 'currency';
         }
-        const lootItems = getLootByType(lootType);
+        const lootItems = getLootByType(lootTable, lootType);
         loot = weightedRandomItem(lootItems);
+        console.log('[FIGHT LOOT DEBUG] lootType:', lootType);
+        console.log('[FIGHT LOOT DEBUG] lootItems:', lootItems);
+        console.log('[FIGHT LOOT DEBUG] selected loot:', loot);
         if (loot) {
           lootMsg = `You found: **${loot.name}**! (Rarity: ${loot.rarity})`;
         }
@@ -133,7 +111,13 @@ module.exports = {
     }
     if (loot) {
       if (!Array.isArray(character.inventory)) character.inventory = [];
-      character.inventory.push(loot);
+      // All items except those with 'uses' should be stackable
+      const isStackable = loot && !loot.uses;
+      if (isStackable) {
+        mergeOrAddInventoryItem(character.inventory, loot);
+      } else {
+        character.inventory.push({ ...loot, count: 1 });
+      }
       reason += `\n${lootMsg}`;
     }
     // Handle level up
@@ -157,9 +141,13 @@ module.exports = {
       leveledUp = true;
       levelUpMsg += `\n🎉 You leveled up! You are now level ${character.level}!\nStats gained: STR +${strUp}, DEF +${defUp}, AGI +${agiUp}, LUCK +${luckUp}`;
     }
+    // Decrement usesLeft for temporary effects and remove expired ones
+    if (character.activeEffects && Array.isArray(character.activeEffects)) {
+      character.activeEffects = character.activeEffects.map(e => ({...e, usesLeft: e.usesLeft - 1})).filter(e => e.usesLeft > 0);
+    }
     // Save
     characters[userId] = character;
-    fs.writeFileSync(CHARACTERS_FILE, JSON.stringify(characters, null, 2));
+    saveCharacters(characters);
     await interaction.reply({ content: `Battle result: ${outcome}\n${reason}${levelUpMsg}`, ephemeral: true });
   }
 };

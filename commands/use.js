@@ -99,6 +99,8 @@ module.exports = {
       return;
     }
     let invItem = character.inventory[invIdx];
+    // Support count property for stackable consumables
+    let isStackable = invItem && invItem.count && !invItem.slot && !invItem.uses;
     // Look up usable item in lootTable (must have 'uses' property)
     const lootItem = lootTable.find(i => i.name === itemName && i.uses);
     if (!lootItem) {
@@ -118,10 +120,18 @@ module.exports = {
       // Default message if none in lootTable
       message = lootItem.message || `Your ${stat} increased!`;
     }
-    // Apply effect
+    // Apply temporary effect (stat boost for 10 uses)
     if (stat && stat !== 'revive') {
-      if (!character.stats) character.stats = { strength: 2, defense: 2, agility: 2, luck: 2 };
-      character.stats[stat] = (character.stats[stat] || 0) + boost;
+      if (!character.activeEffects) character.activeEffects = [];
+      // Find if effect already exists for this stat and boost value
+      const existing = character.activeEffects.find(e => e.stat === stat);
+      if (existing) {
+        // Refresh duration and boost amount
+        existing.boost = boost;
+        existing.usesLeft = 10;
+      } else {
+        character.activeEffects.push({ stat, boost, usesLeft: 10 });
+      }
     }
     let reply = '';
     if (stat === 'revive') {
@@ -129,13 +139,19 @@ module.exports = {
     } else {
       reply = `You used **${itemName}** and ${message} (+${boost} ${stat.charAt(0).toUpperCase() + stat.slice(1)})`;
     }
-    // Decrement uses
-    if (uses > 1) {
-      if (typeof invItem === 'object') {
+    // Decrement uses or count
+    if (typeof invItem === 'object' && invItem.uses) {
+      if (invItem.uses > 1) {
         invItem.uses -= 1;
         character.inventory[invIdx] = invItem;
+        reply += `\nRemaining uses: ${invItem.uses}`;
+      } else {
+        character.inventory.splice(invIdx, 1);
       }
-      reply += `\nRemaining uses: ${uses - 1}`;
+    } else if (isStackable && invItem.count > 1) {
+      invItem.count -= 1;
+      character.inventory[invIdx] = invItem;
+      reply += `\nRemaining: ${invItem.count}`;
     } else {
       character.inventory.splice(invIdx, 1);
     }

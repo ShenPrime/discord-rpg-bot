@@ -3,21 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
 
-function loadCharacters() {
-  if (!fs.existsSync(CHARACTERS_FILE)) return {};
-  try {
-    const data = fs.readFileSync(CHARACTERS_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (e) {
-    return {};
-  }
-}
-function saveCharacters(characters) {
-  fs.writeFileSync(CHARACTERS_FILE, JSON.stringify(characters, null, 2));
-}
+const { loadCharacters, saveCharacters } = require('../characterUtils');
 
 // No ITEM_EFFECTS needed; use lootTable for slot and stats
 const { lootTable } = require('./loot');
+const mergeOrAddInventoryItem = require('../mergeOrAddInventoryItem');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -110,22 +100,44 @@ module.exports = {
         // Both slots filled, replace ring1 by default
         slot = 'ring1';
         replaced = character.equipment[slot];
-        character.inventory.push(character.equipment[slot]);
       }
     } else if (slot === 'necklace') {
       slot = 'necklace';
       if (character.equipment[slot]) {
         replaced = character.equipment[slot];
-        character.inventory.push(character.equipment[slot]);
       }
     } else {
       if (character.equipment[slot]) {
         replaced = character.equipment[slot];
-        character.inventory.push(character.equipment[slot]);
       }
     }
-    // Remove the equipped item from inventory
-    character.inventory.splice(invIdx, 1);
+    // Properly stack or merge replaced item into inventory using full lootTable object
+    if (replaced) {
+      // Find the full item object in lootTable
+      let replacedObj = null;
+      if (typeof replaced === 'object' && replaced.name) {
+        replacedObj = lootTable.find(i => i.name === replaced.name);
+      } else if (typeof replaced === 'string') {
+        replacedObj = lootTable.find(i => i.name === replaced);
+      }
+      // Fallback: use replaced as-is if not found
+      if (!replacedObj) replacedObj = typeof replaced === 'object' ? replaced : { name: replaced };
+      // Stack if possible
+      if (!replacedObj.uses) {
+        mergeOrAddInventoryItem(character.inventory, { ...replacedObj, count: replaced.count || 1 });
+      } else {
+        character.inventory.push({ ...replacedObj });
+      }
+    }
+    // Remove the equipped item from inventory (handle count if present)
+    if (typeof character.inventory[invIdx] === 'object' && character.inventory[invIdx].count) {
+      character.inventory[invIdx].count -= 1;
+      if (character.inventory[invIdx].count === 0) {
+        character.inventory.splice(invIdx, 1);
+      }
+    } else {
+      character.inventory.splice(invIdx, 1);
+    }
     character.equipment[slot] = itemName;
     saveCharacters(characters);
     await interaction.update({ content: `You equipped **${itemName}** in your ${slot} slot.${replaced ? ` (Replaced ${replaced})` : ''}`, components: [], ephemeral: true });

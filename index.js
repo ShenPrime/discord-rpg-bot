@@ -107,12 +107,10 @@ client.on(Events.InteractionCreate, async interaction => {
       }
     }
   } else if (interaction.isButton() && interaction.customId === 'explore_again') {
-    // Defer update to remove loading state
-    await interaction.deferUpdate();
-    // Rerun the explore command logic for the user
+    // Rerun the explore command logic for the user, updating the original message
     const exploreCommand = client.commands.get('explore');
     if (exploreCommand) {
-      await exploreCommand.execute(interaction, (data) => interaction.followUp({ ...data, ephemeral: true }));
+      await exploreCommand.execute(interaction, (data) => interaction.update({ ...data, ephemeral: true }));
     }
   }
 });

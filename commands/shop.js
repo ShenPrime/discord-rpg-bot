@@ -5,29 +5,11 @@ const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
 
 // Loot table extracted from explore.js/fight.js for shop
 // Character file helpers
-function loadCharacters() {
-  if (!fs.existsSync(CHARACTERS_FILE)) return {};
-  try {
-    const data = fs.readFileSync(CHARACTERS_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (e) {
-    return {};
-  }
-}
-function saveCharacters(characters) {
-  fs.writeFileSync(CHARACTERS_FILE, JSON.stringify(characters, null, 2));
-}
+const { loadCharacters, saveCharacters } = require('../characterUtils');
 
-const { lootTable } = require('./loot');
+const { houseTable, mountTable, armorTable, weaponTable, potionTable } = require('./loot');
 
 // Houses (scaling size & price)
-const HOUSES = [
-  { name: 'Cottage', size: 'Small', price: 50000, description: 'A cozy cottage. Modest but homey.' },
-  { name: 'Townhouse', size: 'Medium', price: 100000, description: 'A comfortable townhouse in the city.' },
-  { name: 'Villa', size: 'Large', price: 200000, description: 'A luxurious villa with gardens.' },
-  { name: 'Mansion', size: 'Huge', price: 500000, description: 'A sprawling mansion with many rooms.' },
-  { name: 'Castle', size: 'Epic', price: 1000000, description: 'A legendary castle fit for a king or queen.' }
-];
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -41,7 +23,8 @@ module.exports = {
           { name: 'Weapons', value: 'Weapon' },
           { name: 'Armor', value: 'Armor' },
           { name: 'Potions', value: 'Potion' },
-          { name: 'Houses', value: 'House' }
+          { name: 'Houses', value: 'House' },
+          { name: 'Mounts', value: 'Mount' },
         )
     ),
 
@@ -52,21 +35,32 @@ module.exports = {
     const userId = interaction.user.id;
     let characters = loadCharacters();
     let character = characters[userId];
-    // Gold handling: support both gold as a number and as inventory items
+    // Gold handling: sum both 'Gold' (with count) and 'X Gold' (with amount or name)
     let gold = 0;
     if (character && Array.isArray(character.inventory)) {
       for (const i of character.inventory) {
-        let n = typeof i === 'string' ? i : i.name;
-        const m = n && n.match(/(\d+) Gold/i);
-        if (m) gold += parseInt(m[1], 10);
+        if (typeof i === 'object') {
+          if (i.name === 'Gold') {
+            gold += i.count || 0;
+          } else {
+            const m = i.name && i.name.match(/(\d+) Gold/i);
+            if (m) gold += i.amount || parseInt(m[1], 10) || 0;
+          }
+        }
       }
     }
     // Prepare dropdown/select menu
     let choices = [];
     if (category === 'House') {
-      choices = HOUSES.map(h => ({ label: h.name, value: h.name, description: `${h.size} - ${h.price} Gold` }));
-    } else {
-      choices = lootTable.filter(i => (i.type || i.category) === category).map(i => ({ label: i.name, value: i.name, description: `${i.rarity} - ${i.price} Gold` }));
+      choices = houseTable.map(h => ({ label: h.name, value: h.name, description: `${h.size} - ${h.price} Gold` }));
+    } else if (category === 'Mount') {
+      choices = mountTable.map(m => ({ label: m.name, value: m.name, description: `${m.price} Gold` }));
+    } else if (category === 'Armor') {
+      choices = armorTable.map(a => ({ label: a.name, value: a.name, description: `${a.rarity} - ${a.price} Gold` }));
+    } else if (category === 'Weapon') {
+      choices = weaponTable.map(w => ({ label: w.name, value: w.name, description: `${w.rarity} - ${w.price} Gold` }));
+    } else if (category === 'Potion') {
+      choices = potionTable.map(p => ({ label: p.name, value: p.name, description: `${p.rarity} - ${p.price} Gold` }));
     }
     // Send select menu
     await interaction.reply({
@@ -105,12 +99,19 @@ module.exports = {
     let characters = loadCharacters();
     let character = characters[userId];
     let gold = 0;
+    let goldIdx = -1;
     if (character && Array.isArray(character.inventory)) {
-      for (const i of character.inventory) {
-        let n = typeof i === 'string' ? i : i.name;
-        const m = n && n.match(/(\d+) Gold/i);
-        if (m) gold += parseInt(m[1], 10);
-      }
+      character.inventory.forEach((i, idx) => {
+        if (typeof i === 'object') {
+          if (i.name === 'Gold') {
+            gold += i.count || 0;
+            goldIdx = idx;
+          } else {
+            const m = i.name && i.name.match(/(\d+) Gold/i);
+            if (m) gold += i.amount || parseInt(m[1], 10) || 0;
+          }
+        }
+      });
     }
     // Get selected items
     const selected = interaction.values;
@@ -118,41 +119,46 @@ module.exports = {
     for (const itemName of selected) {
       let shopItem = null;
       if (category === 'House') {
-        shopItem = HOUSES.find(h => h.name === itemName);
-      } else {
-        shopItem = lootTable.find(i => i.name === itemName && (i.type || i.category) === category);
+        shopItem = houseTable.find(h => h.name === itemName);
+      } else if (category === 'Mount') {
+        shopItem = mountTable.find(m => m.name === itemName);
+      } else if (category === 'Armor') {
+        shopItem = armorTable.find(a => a.name === itemName);
+      } else if (category === 'Weapon') {
+        shopItem = weaponTable.find(w => w.name === itemName);
+      } else if (category === 'Potion') {
+        shopItem = potionTable.find(p => p.name === itemName);
       }
       if (!shopItem) continue;
       if (gold < shopItem.price) {
         purchaseResults.push(`❌ Not enough gold for **${shopItem.name}** (costs ${shopItem.price}, you have ${gold})`);
         continue;
       }
-      // Deduct gold
-      let goldToRemove = shopItem.price;
-      let newInventory = [];
-      for (const i of character.inventory) {
-        let n = typeof i === 'string' ? i : i.name;
-        const m = n && n.match(/(\d+) Gold/i);
-        if (m && goldToRemove > 0) {
-          let amt = parseInt(m[1], 10);
-          if (amt <= goldToRemove) {
-            goldToRemove -= amt;
-            continue;
-          } else {
-            newInventory.push({ name: `${amt - goldToRemove} Gold`, rarity: 'common', price: amt - goldToRemove });
-            goldToRemove = 0;
-            continue;
-          }
+      // Deduct gold from single gold entry
+      if (goldIdx !== -1) {
+        character.inventory[goldIdx].count -= shopItem.price;
+        if (character.inventory[goldIdx].count <= 0) {
+          character.inventory.splice(goldIdx, 1);
         }
-        newInventory.push(i);
       }
-      character.inventory = newInventory;
+      gold -= shopItem.price;
       // Add item or set house
       if (category === 'House') {
         character.house = shopItem;
         purchaseResults.push(`🏠 Bought **${shopItem.name}** for ${shopItem.price} Gold!`);
+      } else if (category === 'Mount') {
+        character.mount = shopItem;
+        purchaseResults.push(`🐎 Bought **${shopItem.name}** for ${shopItem.price} Gold!`);
       } else {
-        character.inventory.push(shopItem);
+        // Use count property for stackable items
+        // All items except those with 'uses' should be stackable
+        const isStackable = !shopItem.uses;
+        if (isStackable) {
+          // Find an unequipped, matching item (all properties except count)
+          mergeOrAddInventoryItem(character.inventory, shopItem);
+        } else {
+          character.inventory.push({ ...shopItem, count: 1 });
+        }
         purchaseResults.push(`✅ Bought **${shopItem.name}** for ${shopItem.price} Gold!`);
       }
       gold -= shopItem.price;

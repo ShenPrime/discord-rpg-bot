@@ -1,5 +1,6 @@
 // commands/explore.js
 const { SlashCommandBuilder } = require('discord.js');
+const mergeOrAddInventoryItem = require('../mergeOrAddInventoryItem');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -9,21 +10,7 @@ module.exports = {
     // Load user character
     const userId = interaction.user.id;
     // Use same helpers as inventory.js
-    const fs = require('fs');
-    const path = require('path');
-    const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
-    function loadCharacters() {
-      if (!fs.existsSync(CHARACTERS_FILE)) return {};
-      try {
-        const data = fs.readFileSync(CHARACTERS_FILE, 'utf-8');
-        return JSON.parse(data);
-      } catch (e) {
-        return {};
-      }
-    }
-    function saveCharacters(characters) {
-      fs.writeFileSync(CHARACTERS_FILE, JSON.stringify(characters, null, 2));
-    }
+    const { loadCharacters, saveCharacters } = require('../characterUtils');
     let characters = loadCharacters();
     let character = characters[userId];
     if (!character) {
@@ -44,7 +31,7 @@ module.exports = {
       if (!character.stats) {
         character.stats = { strength: 2, defense: 2, agility: 2, luck: 2 };
       }
-      function randStat() { return Math.floor(Math.random() * 5) + 1; }
+      function randStat() { return Math.floor(Math.random() * 2) + 1; }
       const strUp = randStat();
       const defUp = randStat();
       const agiUp = randStat();
@@ -57,37 +44,20 @@ module.exports = {
       levelUpMsg += `\n🎉 You leveled up! You are now level ${character.level}!\nStats gained: STR +${strUp}, DEF +${defUp}, AGI +${agiUp}, LUCK +${luckUp}`;
     }
     // Use centralized loot table
-    const { lootTable } = require('./loot');
+    const { exploreTable } = require('./loot');
     // Helper: filter loot by type
-    function getLootByType(type) {
-      return lootTable.filter(item => (item.type || item.category) && (item.type || item.category).toLowerCase() === type.toLowerCase());
-    }
-    // Helper: weighted random item
-    function weightedRandomItem(items) {
-      if (!items.length) return null;
-      const total = items.reduce((sum, item) => sum + (item.chance || 1), 0);
-      let r = Math.random() * total;
-      for (const item of items) {
-        if (r < (item.chance || 1)) return item;
-        r -= (item.chance || 1);
+    const { getLootByType, weightedRandomItem } = require('../lootUtils');
+    // Stats influence exploration (apply temporary effects)
+    let agi = character.stats?.agility || 2;
+    let luck = character.stats?.luck || 2;
+    if (character.activeEffects && Array.isArray(character.activeEffects)) {
+      for (const effect of character.activeEffects) {
+        if (effect.stat === 'agility') agi += effect.boost;
+        if (effect.stat === 'luck') luck += effect.boost;
       }
-      return items[items.length - 1];
     }
-    // Weighted random item helper
-    function weightedRandomItem(items) {
-      const total = items.reduce((sum, item) => sum + item.chance, 0);
-      let r = Math.random() * total;
-      for (const item of items) {
-        if (r < item.chance) return item;
-        r -= item.chance;
-      }
-      return items[items.length - 1]; // Fallback
-    }
-    // Stats influence exploration
-    const agi = character.stats?.agility || 2;
-    const luck = character.stats?.luck || 2;
     // Base 50% + 2% per AGI (max 90%)
-    const findChance = Math.min(0.5 + agi * 0.02, 0.9);
+    const findChance = Math.min(0.5 + agi * 0.002, 0.9);
     let foundItem = null;
     let foundItemRarity = null;
     if (Math.random() < findChance) {
@@ -95,19 +65,42 @@ module.exports = {
       const rareChance = Math.min(0.4 + luck * 0.002, 0.95);
       let lootType;
       if (Math.random() < rareChance) {
-        // Rare loot: weapon, armor, potion
-        const rareTypes = ['weapon', 'armor', 'potion'];
+        // Rare loot: weapon, armor, potion, gem
+        const rareTypes = ['weapon', 'armor', 'potion', 'gem'];
         lootType = rareTypes[Math.floor(Math.random() * rareTypes.length)];
       } else {
         lootType = 'currency';
       }
-      const lootItems = getLootByType(lootType);
+      const lootItems = getLootByType(exploreTable, lootType);
       const itemObj = weightedRandomItem(lootItems);
+      console.log('[EXPLORE LOOT DEBUG] lootType:', lootType);
+      console.log('[EXPLORE LOOT DEBUG] lootItems:', lootItems);
+      console.log('[EXPLORE LOOT DEBUG] selected itemObj:', itemObj);
       if (itemObj) {
         foundItem = itemObj.name;
         foundItemRarity = itemObj.rarity;
-        character.inventory.push(itemObj);
+        // Special handling for gold/currency and stackables
+        if (itemObj.name === 'Gold' || lootType === 'currency') {
+          // Use count property, merge into single gold entry
+          let goldAmount = itemObj.count || itemObj.amount || itemObj.price || 1;
+          let goldIdx = character.inventory.findIndex(i => typeof i === 'object' && i.name === 'Gold');
+          if (goldIdx !== -1) {
+            character.inventory[goldIdx].count = (character.inventory[goldIdx].count || 0) + goldAmount;
+          } else {
+            character.inventory.unshift({ name: 'Gold', count: goldAmount, rarity: 'common', price: 1 });
+          }
+          console.log('[EXPLORE LOOT DEBUG] inventory after gold:', character.inventory);
+        } else {
+          mergeOrAddInventoryItem(character.inventory, itemObj);
+          console.log('[EXPLORE LOOT DEBUG] inventory after item:', character.inventory);
+        }
       }
+    } else {
+      // No item found
+    }
+    // Decrement usesLeft for temporary effects and remove expired ones
+    if (character.activeEffects && Array.isArray(character.activeEffects)) {
+      character.activeEffects = character.activeEffects.map(e => ({...e, usesLeft: e.usesLeft - 1})).filter(e => e.usesLeft > 0);
     }
     characters[userId] = character;
     saveCharacters(characters);
