@@ -12,7 +12,6 @@ module.exports = {
     .setDescription('Delete your RPG character and all progress.'),
   async execute(interaction) {
     const userId = interaction.user.id;
-    const userId = interaction.user.id;
     const character = await getCharacter(userId);
     if (!character) {
       await interaction.reply({ content: 'You do not have a character to delete.', ephemeral: true });
