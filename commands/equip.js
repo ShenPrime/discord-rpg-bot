@@ -112,10 +112,21 @@ module.exports = {
       const { lootTable } = require('./loot');
       let lootObj = lootTable.find(i => i.name === unequipped);
       if (lootObj) {
-        mergeOrAddInventoryItem(character.inventory, { ...lootObj });
+        // Try to merge with existing stack if present
+        let invIdx = character.inventory.findIndex(i => i.name === lootObj.name && !i.uses);
+        if (invIdx !== -1) {
+          character.inventory[invIdx].count = (character.inventory[invIdx].count || 1) + 1;
+        } else {
+          mergeOrAddInventoryItem(character.inventory, { ...lootObj });
+        }
       } else {
         // fallback for legacy or unknown, just push
-        character.inventory.push(unequipped);
+        let invIdx = character.inventory.findIndex(i => i === unequipped || (typeof i === 'object' && i.name === unequipped && !i.uses));
+        if (invIdx !== -1 && typeof character.inventory[invIdx] === 'object' && character.inventory[invIdx].count) {
+          character.inventory[invIdx].count += 1;
+        } else {
+          character.inventory.push(unequipped);
+        }
       }
     }
     character.equipment[slot] = itemName; // Store only the name
