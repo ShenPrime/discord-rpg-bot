@@ -30,19 +30,19 @@ function checkLevelUp(character) {
     character.xp -= getXpForNextLevel(character.level || 1);
     character.level = (character.level || 1) + 1;
     if (!character.stats) {
-      character.stats = { strength: 2, defense: 2, agility: 2, luck: 2 };
+      character.stats = { strength: 2, defense: 2, luck: 2 };
     }
     const strUp = randStat();
     const defUp = randStat();
-    const agiUp = randStat();
+
     const luckUp = randStat();
     character.stats.strength += strUp;
     character.stats.defense += defUp;
-    character.stats.agility += agiUp;
+
     character.stats.luck += luckUp;
     character.class = getClassForLevel(character.level);
     leveledUp = true;
-    levelUpMsg += `\n🎉 You leveled up! You are now level ${character.level}!\nStats gained: STR +${strUp}, DEF +${defUp}, AGI +${agiUp}, LUCK +${luckUp}`;
+    levelUpMsg += `\n🎉 You leveled up! You are now level ${character.level}!\nStats gained: STR +${strUp}, DEF +${defUp}, LUCK +${luckUp}`;
   }
   return { leveledUp, levelUpMsg };
 }

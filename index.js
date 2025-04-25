@@ -6,6 +6,15 @@ const shop = require('./commands/shop.js');
 const sell = require('./commands/sell.js');
 const equip = require('./commands/equip.js');
 const use = require('./commands/use.js');
+const character = require('./commands/character.js');
+const deletecharacter = require('./commands/deletecharacter.js');
+const exo_leaderboard = require('./commands/exo_leaderboard.js');
+const explore = require('./commands/explore.js');
+const fight = require('./commands/fight.js');
+const inventory = require('./commands/inventory.js');
+const ping = require('./commands/ping.js');
+const sell_stack = require('./commands/sell_stack.js');
+const loot = require('./commands/loot.js');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 client.commands = new Collection();
@@ -60,7 +69,6 @@ client.once('ready', async () => {
   }
 });
 
-const inventory = require('./commands/inventory.js');
 client.on(Events.InteractionCreate, async interaction => {
   if (interaction.isAutocomplete()) {
     const command = client.commands.get(interaction.commandName);
@@ -100,6 +108,15 @@ client.on(Events.InteractionCreate, async interaction => {
         await interaction.reply({ content: 'There was an error processing your sell selection!', ephemeral: true });
       }
     }
+  } else if (interaction.isModalSubmit() && interaction.customId.startsWith('sell_quantity')) {
+    try {
+      await sell.handleSelect(interaction);
+    } catch (error) {
+      console.error(error);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: 'There was an error processing your sell modal!', ephemeral: true });
+      }
+    }
   } else if (
     interaction.isButton() && (
       interaction.customId === 'inv_next' ||
@@ -137,11 +154,15 @@ client.on(Events.InteractionCreate, async interaction => {
     }
   } else if (interaction.isButton() && interaction.customId.startsWith('shop_page_')) {
     // Pagination for shop select menu
-    const page = parseInt(interaction.customId.replace('shop_page_', ''), 10);
-    const shopCommand = client.commands.get('shop');
-    if (shopCommand) {
-      // We need to preserve the category option for shop
-      await shopCommand.execute({ ...interaction, reply: (data) => interaction.update({ ...data, ephemeral: true }) }, page);
+    // customId format: shop_page_<category>_<page>
+    const match = interaction.customId.match(/^shop_page_(\w+)_(-?\d+)$/);
+    if (match) {
+      const category = match[1];
+      const page = parseInt(match[2], 10);
+      const shopCommand = client.commands.get('shop');
+      if (shopCommand) {
+        await shopCommand.execute({ ...interaction, reply: (data) => interaction.update({ ...data, ephemeral: true }) }, page, category);
+      }
     }
   } else if (interaction.isButton() && interaction.customId.startsWith('use_page_')) {
     // Pagination for use select menu

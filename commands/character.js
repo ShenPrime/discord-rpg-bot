@@ -1,39 +1,13 @@
-const { SlashCommandBuilder } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+
 const { getXpForNextLevel, checkLevelUp, getClassForLevel } = require('../characterUtils');
 const { getCharacter, saveCharacter } = require('../characterModel');
 
-function loadCharacters() {
-  if (!fs.existsSync(CHARACTERS_FILE)) return {};
-  try {
-    const data = fs.readFileSync(CHARACTERS_FILE, 'utf-8');
-    const parsed = JSON.parse(data);
-    // Normalize all inventories: ensure every item except gold has a count property
-    for (const charId in parsed) {
-      const character = parsed[charId];
-      if (Array.isArray(character.inventory)) {
-        character.inventory = character.inventory.map(item => {
-          if (typeof item === 'object' && item.name && item.name !== 'Gold') {
-            if (!Object.prototype.hasOwnProperty.call(item, 'count')) {
-              return { ...item, count: 1 };
-            }
-          }
-          return item;
-        });
-      }
-    }
-    return parsed;
-  } catch (e) {
-    return {};
-  }
-}
 
-module.exports.loadCharacters = loadCharacters;
 
-function saveCharacters(characters) {
-  fs.writeFileSync(CHARACTERS_FILE, JSON.stringify(characters, null, 2));
-}
+
+
+
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -184,7 +158,7 @@ module.exports = {
         stats: {
           strength: 2,
           defense: 2,
-          agility: 2,
+
           luck: 2
         }
       };

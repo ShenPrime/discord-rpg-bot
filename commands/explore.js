@@ -27,16 +27,14 @@ module.exports = {
     // Helper: filter loot by type
     const { getLootByType, weightedRandomItem } = require('../lootUtils');
     // Stats influence exploration (apply temporary effects)
-    let agi = character.stats?.agility || 2;
     let luck = character.stats?.luck || 2;
     if (character.activeEffects && Array.isArray(character.activeEffects)) {
       for (const effect of character.activeEffects) {
-        if (effect.stat === 'agility') agi += effect.boost;
         if (effect.stat === 'luck') luck += effect.boost;
       }
     }
-    // Base 50% + 2% per AGI (max 90%)
-    const findChance = Math.min(0.5 + agi * 0.002, 0.9);
+    // Base 50% find chance (no agility bonus)
+    const findChance = 0.5;
     let foundItem = null;
     let foundItemRarity = null;
     if (Math.random() < findChance) {
@@ -52,9 +50,6 @@ module.exports = {
       }
       const lootItems = getLootByType(exploreTable, lootType);
       const itemObj = weightedRandomItem(lootItems);
-      console.log('[EXPLORE LOOT DEBUG] lootType:', lootType);
-      console.log('[EXPLORE LOOT DEBUG] lootItems:', lootItems);
-      console.log('[EXPLORE LOOT DEBUG] selected itemObj:', itemObj);
       if (itemObj) {
         foundItem = itemObj.name;
         foundItemRarity = itemObj.rarity;
@@ -63,10 +58,8 @@ module.exports = {
           const addGoldToInventory = require('../addGoldToInventory');
           let goldAmount = itemObj.count || itemObj.amount || itemObj.price || 1;
           addGoldToInventory(character.inventory, goldAmount);
-          console.log('[EXPLORE LOOT DEBUG] inventory after gold:', character.inventory);
         } else {
           mergeOrAddInventoryItem(character.inventory, itemObj);
-          console.log('[EXPLORE LOOT DEBUG] inventory after item:', character.inventory);
         }
       }
     } else {

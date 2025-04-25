@@ -28,9 +28,15 @@ module.exports = {
 
   // No autocomplete: item selection is handled via select menus in execute()
 
-  async execute(interaction, page = 0) {
+  async execute(interaction, page = 0, categoryArg = null) {
     const paginateSelectMenu = require('../paginateSelectMenu');
-    const category = interaction.options.getString('category');
+    // For slash command, get from options; for button, get from arg
+    let category = categoryArg || (interaction.options && interaction.options.getString('category'));
+    // If still not found, try to parse from interaction.message.content (for safety)
+    if (!category && interaction.message && interaction.message.content) {
+      const match = interaction.message.content.match(/from the (\w+) shop/i);
+      if (match) category = match[1];
+    }
     const userId = interaction.user.id;
     
     let character = await getCharacter(userId);
@@ -105,7 +111,8 @@ module.exports = {
       choices,
       page,
       selectCustomId: 'shop_select',
-      buttonCustomIdPrefix: 'shop_page_',
+      // Encode category into button customId: shop_page_<category>_<page>
+      buttonCustomIdPrefix: `shop_page_${category}_`,
       placeholder: 'Select what you want to buy',
       minValues: 1,
       maxValues: 10,

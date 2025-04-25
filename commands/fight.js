@@ -152,9 +152,18 @@ module.exports = {
         .setLabel('Fight Again')
         .setStyle(ButtonStyle.Primary)
     );
-    const respond = replyFn || (data => interaction.reply(data));
+    const respond = replyFn || (data => interaction.reply({ ...data, flags: 64 }));
     const xpForNext = getXpForNextLevel(character.level || 1);
     const levelLine = `Level: ${character.level || 1} | XP: ${character.xp} / ${xpForNext}`;
-    await respond({ content: `Battle result: ${outcome}\n${reason}${levelUpMsg}\n${levelLine}`, components: [row], ephemeral: true });
+    try {
+      await respond({ content: `Battle result: ${outcome}\n${reason}${levelUpMsg}\n${levelLine}`, components: [row] });
+    } catch (err) {
+      if (err.code === 10062 || err.message?.includes('Unknown interaction')) {
+        // Interaction expired or already acknowledged, do nothing or log
+        console.warn('Tried to respond to an expired or unknown interaction.');
+      } else {
+        throw err;
+      }
+    }
   }
 };

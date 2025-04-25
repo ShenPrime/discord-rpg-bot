@@ -1,7 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
-const CHARACTERS_FILE = path.join(__dirname, '../characters.json');
+
 
 const { getCharacter, deleteCharacter } = require('../characterModel');
 
