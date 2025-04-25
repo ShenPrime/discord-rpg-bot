@@ -107,21 +107,25 @@ Stats gained: STR +${strUp}, DEF +${defUp}, LUCK +${luckUp}`,
       };
       const userMention = `<@${userId}>`;
       const classIcon = classIcons[character.class] || '✨';
-      // Stat lines
-      let statLines = Object.entries(character.stats || {}).map(([stat, val]) => {
+      // Stat lines (only strength, defense, luck)
+      const statKeys = ['strength', 'defense', 'luck'];
+      let statLines = statKeys.map(stat => {
+        const val = character.stats?.[stat] ?? 0;
         const icon = statIcons[stat] || '';
         return `${icon} **${stat.charAt(0).toUpperCase() + stat.slice(1)}:** ${val}`;
       }).join('\n');
       // Calculate total stats (base + equipment + temp)
       const { lootTable } = require('./loot');
-      const baseStats = { ...character.stats };
+      const baseStats = { strength: character.stats?.strength ?? 0, defense: character.stats?.defense ?? 0, luck: character.stats?.luck ?? 0 };
       let eqStats = { strength: 0, defense: 0, luck: 0 };
       if (character.equipment) {
         for (const [slot, itemName] of Object.entries(character.equipment)) {
           const lootItem = lootTable.find(i => i.name === itemName && i.stats);
           if (lootItem && lootItem.stats) {
             for (const [stat, val] of Object.entries(lootItem.stats)) {
-              eqStats[stat] = (eqStats[stat] || 0) + val;
+              if (statKeys.includes(stat)) {
+                eqStats[stat] = (eqStats[stat] || 0) + val;
+              }
             }
           }
         }
@@ -129,21 +133,18 @@ Stats gained: STR +${strUp}, DEF +${defUp}, LUCK +${luckUp}`,
       let tempStats = { strength: 0, defense: 0, luck: 0 };
       if (character.activeEffects && Array.isArray(character.activeEffects)) {
         for (const effect of character.activeEffects) {
-          if (tempStats.hasOwnProperty(effect.stat)) {
+          if (statKeys.includes(effect.stat)) {
             tempStats[effect.stat] += effect.boost;
           }
         }
       }
       let totalStats = { ...baseStats };
-      for (const stat of Object.keys(eqStats)) {
-        totalStats[stat] = (totalStats[stat] || 0) + (eqStats[stat] || 0);
+      for (const stat of statKeys) {
+        totalStats[stat] = (totalStats[stat] || 0) + (eqStats[stat] || 0) + (tempStats[stat] || 0);
       }
-      for (const stat of Object.keys(tempStats)) {
-        totalStats[stat] = (totalStats[stat] || 0) + (tempStats[stat] || 0);
-      }
-      let totalStatLines = Object.entries(totalStats).map(([stat, val]) => {
+      let totalStatLines = statKeys.map(stat => {
         const icon = statIcons[stat] || '';
-        return `${icon} **${stat.charAt(0).toUpperCase() + stat.slice(1)}:** ${val}`;
+        return `${icon} **${stat.charAt(0).toUpperCase() + stat.slice(1)}:** ${totalStats[stat]}`;
       }).join('   ');
       // Equipment
       let eqList = [];
