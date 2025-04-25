@@ -1,7 +1,7 @@
 // MongoDB connection utility for RPG bot
 const { MongoClient } = require('mongodb');
 
-const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017';
+const uri = process.env.MONGO_URL;
 const dbName = process.env.MONGODB_DB || 'discord_rpg_bot';
 
 let client;
