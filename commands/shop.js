@@ -185,11 +185,28 @@ module.exports = {
       }
       gold -= shopItem.price;
       // Add item or set house
+      const { CHARACTER_COLLECTIONS_DEFAULTS } = require('../characterModel');
+      // Ensure collections exist
+      if (!character.collections) character.collections = { ...CHARACTER_COLLECTIONS_DEFAULTS.collections };
+      if (typeof character.activeHouse === 'undefined') character.activeHouse = null;
+      if (typeof character.activeMount === 'undefined') character.activeMount = null;
       if (category === 'House') {
-        character.house = shopItem;
+        // Add to collections if not present
+        if (!character.collections.houses.some(h => h.name === shopItem.name)) {
+          character.collections.houses.push(shopItem);
+        }
+        // Set as active if first or only
+        if (!character.activeHouse || character.collections.houses.length === 1) {
+          character.activeHouse = shopItem.name;
+        }
         purchaseResults.push(`🏠 Bought **${shopItem.name}** for ${shopItem.price} Gold!`);
       } else if (category === 'Mount') {
-        character.mount = shopItem;
+        if (!character.collections.mounts.some(m => m.name === shopItem.name)) {
+          character.collections.mounts.push(shopItem);
+        }
+        if (!character.activeMount || character.collections.mounts.length === 1) {
+          character.activeMount = shopItem.name;
+        }
         purchaseResults.push(`🐎 Bought **${shopItem.name}** for ${shopItem.price} Gold!`);
       } else {
         // Use count property for stackable items

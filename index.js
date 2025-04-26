@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { Client, GatewayIntentBits, Collection, Events } = require('discord.js');
 const shop = require('./commands/shop.js');
+const setactive = require('./commands/setactive.js');
 const sell = require('./commands/sell.js');
 const testmodal = require('./commands/testmodal.js');
 const equip = require('./commands/equip.js');
@@ -92,6 +93,23 @@ client.on(Events.InteractionCreate, async interaction => {
       await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
     }
   } else if (interaction.isStringSelectMenu() && interaction.customId === 'shop_select') {
+    try {
+      await shop.handleSelect(interaction);
+    } catch (error) {
+      console.error(error);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: 'There was an error processing your shop selection!', ephemeral: true });
+      }
+    }
+  } else if (interaction.isStringSelectMenu() && (interaction.customId === 'setactive_house' || interaction.customId === 'setactive_mount')) {
+    try {
+      await setactive.handleSelect(interaction);
+    } catch (error) {
+      console.error(error);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: 'There was an error processing your selection!', ephemeral: true });
+      }
+    }
     try {
       await shop.handleSelect(interaction);
     } catch (error) {

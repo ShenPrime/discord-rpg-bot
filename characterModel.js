@@ -32,5 +32,11 @@ module.exports = {
   getCharacter,
   saveCharacter,
   getAllCharacters,
-  deleteCharacter
+  deleteCharacter,
+  // Collections and active display fields for houses and mounts
+  CHARACTER_COLLECTIONS_DEFAULTS: {
+    collections: { houses: [], mounts: [] },
+    activeHouse: null,
+    activeMount: null
+  }
 };

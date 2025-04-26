@@ -118,8 +118,21 @@ module.exports = {
         }
       }
       // House and mount
-      let houseStr = character.house ? `🏠 **${character.house.name}** (${character.house.size})\n${character.house.description}` : '';
-      let mountStr = character.mount ? `🐎 **${character.mount.name}**\n${character.mount.description}` : '';
+      // Show active house and mount from collections
+      let houseStr = '';
+      if (character.collections && character.activeHouse) {
+        const house = character.collections.houses.find(h => h.name === character.activeHouse);
+        if (house) {
+          houseStr = `🏠 **${house.name}**${house.size ? ` (${house.size})` : ''}\n${house.description || ''}`;
+        }
+      }
+      let mountStr = '';
+      if (character.collections && character.activeMount) {
+        const mount = character.collections.mounts.find(m => m.name === character.activeMount);
+        if (mount) {
+          mountStr = `🐎 **${mount.name}**\n${mount.description || ''}`;
+        }
+      }
       // Embed
       await saveCharacter(userId, character);
       await interaction.reply({
