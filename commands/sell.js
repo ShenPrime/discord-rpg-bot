@@ -297,7 +297,15 @@ You cannot mix stackables and singles or select multiple stackables.`,
       const userId = interaction.user.id;
       let character = await getCharacter(userId);
       // Find the stackable item by name and rarity (treat missing rarity as empty string)
-      const invIdx = character.inventory.findIndex(item => item && typeof item === 'object' && item.name === decodedName && ((item.rarity || '') === decodedRarity) && item.count > 1);
+      // Find stackable item by name, type, and rarity (if present), not index
+      const invIdx = character.inventory.findIndex(item => {
+        if (!item || typeof item !== 'object') return false;
+        if (item.name !== decodedName) return false;
+        if ((item.rarity || '') !== decodedRarity) return false;
+        if ((item.type || '').toLowerCase() !== 'potion') return false;
+        if (!item.count || item.count < 1) return false;
+        return true;
+      });
       if (invIdx === -1) {
         const debugModal = require('../debug_modal');
         await debugModal(interaction);

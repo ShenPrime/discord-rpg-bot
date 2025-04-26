@@ -21,20 +21,14 @@ function deepEqual(obj1, obj2) {
 
 function mergeOrAddInventoryItem(inventory, itemObj) {
   if (!Array.isArray(inventory)) return;
-  const isStackable = itemObj && !itemObj.uses;
-  if (!isStackable) {
-    inventory.push({ ...itemObj, count: itemObj.count || 1 });
-    return;
-  }
   // Delegate all gold merging to addGoldToInventory utility
   if (itemObj.name === "Gold") {
     const addGoldToInventory = require('./addGoldToInventory');
     addGoldToInventory(inventory, itemObj.count || 1);
     return;
   }
-  // Only compare core gameplay fields for other items
+  // Always try to merge with existing stackable items
   let existingIdx = inventory.findIndex(i => {
-    if (i.uses) return false;
     if (i.name !== itemObj.name) return false;
     if (i.type !== itemObj.type) return false;
     if ((i.slot || null) !== (itemObj.slot || null)) return false;

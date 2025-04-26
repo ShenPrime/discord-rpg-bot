@@ -108,7 +108,17 @@ module.exports = {
       character.activeEffects.push({ stat, boost, usesLeft });
       boostMsg = `\n+${boost} ${stat.charAt(0).toUpperCase() + stat.slice(1)} for ${usesLeft} fights/explores!`;
     }
-    if (item.uses) {
+    // Always use count for potions (stackable logic)
+    if (item.type && item.type.toLowerCase() === 'potion') {
+      if (item.count && item.count > 1) {
+        item.count -= 1;
+        usedMsg = `You used **${itemName}**. (${item.count} left)`;
+        character.inventory[invIdx] = item;
+      } else {
+        character.inventory.splice(invIdx, 1);
+        usedMsg = `You used **${itemName}**. It is now gone!`;
+      }
+    } else if (item.uses) {
       item.uses -= 1;
       usedMsg = `You used **${itemName}**. (${item.uses} uses left)`;
       if (item.uses <= 0) {

@@ -135,7 +135,13 @@ module.exports = {
       if (match) category = match[1];
     }
     if (!category) {
-      await interaction.reply({ content: 'Could not determine shop category. Please try again.', ephemeral: true });
+      try {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: 'Could not determine shop category. Please try again.', ephemeral: true });
+        }
+      } catch (e) {
+        // Ignore expired interaction errors
+      }
       return;
     }
     const userId = interaction.user.id;
@@ -221,12 +227,7 @@ module.exports = {
           mergeOrAddCollectionItem(character.collections.weapons, shopItem);
         }
         // Add to inventory as usual
-        const isStackable = !shopItem.uses;
-        if (isStackable) {
-          mergeOrAddInventoryItem(character.inventory, shopItem);
-        } else {
-          character.inventory.push({ ...shopItem, count: 1 });
-        }
+        mergeOrAddInventoryItem(character.inventory, shopItem);
         purchaseResults.push(`🗡️ Bought **${shopItem.name}** for ${shopItem.price} Gold!`);
       } else if (category === 'Armor') {
         // Add to collections if epic or legendary
@@ -234,17 +235,12 @@ module.exports = {
           mergeOrAddCollectionItem(character.collections.armor, shopItem);
         }
         // Add to inventory as usual
-        const isStackable = !shopItem.uses;
-        if (isStackable) {
-          mergeOrAddInventoryItem(character.inventory, shopItem);
-        } else {
-          character.inventory.push({ ...shopItem, count: 1 });
-        }
+        mergeOrAddInventoryItem(character.inventory, shopItem);
         purchaseResults.push(`🛡️ Bought **${shopItem.name}** for ${shopItem.price} Gold!`);
       } else {
         // Use count property for stackable items
         // All items except those with 'uses' should be stackable
-        const isStackable = !shopItem.uses;
+        const isStackable = (category === 'Potion');
         if (isStackable) {
           // Find an unequipped, matching item (all properties except count)
           mergeOrAddInventoryItem(character.inventory, shopItem);
@@ -256,11 +252,17 @@ module.exports = {
       gold -= shopItem.price;
     }
     await saveCharacter(userId, character);
-    await interaction.update({
-      content: purchaseResults.join('\n') + `\nRemaining gold: ${gold} Gold`,
-      components: [],
-      ephemeral: true
-    });
+    try {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.update({
+          content: purchaseResults.join('\n') + `\nRemaining gold: ${gold} Gold`,
+          components: [],
+          ephemeral: true
+        });
+      }
+    } catch (e) {
+      // Ignore expired interaction errors
+    }
   }
 };
 
