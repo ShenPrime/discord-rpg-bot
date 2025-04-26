@@ -34,7 +34,7 @@ module.exports = {
         await saveCharacter(userId, character);
         await interaction.reply({
           content: levelUpMsg,
-          ephemeral: true
+  
         });
       }
 
@@ -166,7 +166,7 @@ module.exports = {
           color: 0x3498db,
           footer: { text: 'Your RPG Character Sheet' }
         }],
-        ephemeral: true
+
       });
     } else {
       // Prompt for name if not provided
@@ -232,7 +232,7 @@ module.exports = {
           color: 0x3498db,
           footer: { text: 'Your RPG Character Sheet' }
         }],
-        ephemeral: true
+
       });
     }
   },
