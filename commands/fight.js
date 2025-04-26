@@ -128,6 +128,16 @@ module.exports = {
         const isStackable = loot && !loot.uses;
         if (isStackable) {
           mergeOrAddInventoryItem(character.inventory, loot);
+          // Add epic/legendary weapons/armor to collections
+          if (loot && (loot.type === 'Weapon' || loot.type === 'Armor') && (loot.rarity === 'epic' || loot.rarity === 'legendary')) {
+            character.collections = character.collections || { houses: [], mounts: [], weapons: [], armor: [] };
+            const mergeOrAddCollectionItem = require('../mergeOrAddCollectionItem');
+            if (loot.type === 'Weapon') {
+              mergeOrAddCollectionItem(character.collections.weapons, loot);
+            } else if (loot.type === 'Armor') {
+              mergeOrAddCollectionItem(character.collections.armor, loot);
+            }
+          }
         } else {
           character.inventory.push({ ...loot, count: 1 });
         }

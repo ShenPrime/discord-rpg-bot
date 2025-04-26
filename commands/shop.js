@@ -208,6 +208,32 @@ module.exports = {
           character.activeMount = shopItem.name;
         }
         purchaseResults.push(`🐎 Bought **${shopItem.name}** for ${shopItem.price} Gold!`);
+      } else if (category === 'Weapon') {
+        // Add to collections if epic or legendary
+        if ((shopItem.rarity === 'epic' || shopItem.rarity === 'legendary') && !character.collections.weapons.some(w => w.name === shopItem.name)) {
+          character.collections.weapons.push(shopItem);
+        }
+        // Add to inventory as usual
+        const isStackable = !shopItem.uses;
+        if (isStackable) {
+          mergeOrAddInventoryItem(character.inventory, shopItem);
+        } else {
+          character.inventory.push({ ...shopItem, count: 1 });
+        }
+        purchaseResults.push(`🗡️ Bought **${shopItem.name}** for ${shopItem.price} Gold!`);
+      } else if (category === 'Armor') {
+        // Add to collections if epic or legendary
+        if ((shopItem.rarity === 'epic' || shopItem.rarity === 'legendary') && !character.collections.armor.some(a => a.name === shopItem.name)) {
+          character.collections.armor.push(shopItem);
+        }
+        // Add to inventory as usual
+        const isStackable = !shopItem.uses;
+        if (isStackable) {
+          mergeOrAddInventoryItem(character.inventory, shopItem);
+        } else {
+          character.inventory.push({ ...shopItem, count: 1 });
+        }
+        purchaseResults.push(`🛡️ Bought **${shopItem.name}** for ${shopItem.price} Gold!`);
       } else {
         // Use count property for stackable items
         // All items except those with 'uses' should be stackable
