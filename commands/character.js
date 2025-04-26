@@ -34,7 +34,7 @@ module.exports = {
         await saveCharacter(userId, character);
         await interaction.reply({
           content: levelUpMsg,
-          ephemeral: true
+  
         });
       }
 
@@ -118,8 +118,36 @@ module.exports = {
         }
       }
       // House and mount
-      let houseStr = character.house ? `🏠 **${character.house.name}** (${character.house.size})\n${character.house.description}` : '';
-      let mountStr = character.mount ? `🐎 **${character.mount.name}**\n${character.mount.description}` : '';
+      // Backwards compatibility: migrate old house/mount to collections
+      if (character.house && (!character.collections || !Array.isArray(character.collections.houses) || character.collections.houses.length === 0)) {
+        character.collections = character.collections || { houses: [], mounts: [] };
+        character.collections.houses = [character.house];
+        character.activeHouse = character.house.name;
+        delete character.house;
+        await saveCharacter(userId, character);
+      }
+      if (character.mount && (!character.collections || !Array.isArray(character.collections.mounts) || character.collections.mounts.length === 0)) {
+        character.collections = character.collections || { houses: [], mounts: [] };
+        character.collections.mounts = [character.mount];
+        character.activeMount = character.mount.name;
+        delete character.mount;
+        await saveCharacter(userId, character);
+      }
+      // Show active house and mount from collections
+      let houseStr = '';
+      if (character.collections && character.activeHouse) {
+        const house = character.collections.houses.find(h => h.name === character.activeHouse);
+        if (house) {
+          houseStr = `🏠 **${house.name}**${house.size ? ` (${house.size})` : ''}\n${house.description || ''}`;
+        }
+      }
+      let mountStr = '';
+      if (character.collections && character.activeMount) {
+        const mount = character.collections.mounts.find(m => m.name === character.activeMount);
+        if (mount) {
+          mountStr = `🐎 **${mount.name}**\n${mount.description || ''}`;
+        }
+      }
       // Embed
       await saveCharacter(userId, character);
       await interaction.reply({
@@ -138,7 +166,7 @@ module.exports = {
           color: 0x3498db,
           footer: { text: 'Your RPG Character Sheet' }
         }],
-        ephemeral: true
+
       });
     } else {
       // Prompt for name if not provided
@@ -204,7 +232,7 @@ module.exports = {
           color: 0x3498db,
           footer: { text: 'Your RPG Character Sheet' }
         }],
-        ephemeral: true
+
       });
     }
   },
