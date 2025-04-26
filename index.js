@@ -111,6 +111,15 @@ client.on(Events.InteractionCreate, async interaction => {
         await interaction.reply({ content: 'There was an error processing your collections selection!', ephemeral: true });
       }
     }
+  } else if (interaction.isStringSelectMenu() && interaction.customId.startsWith('inventory_cat')) {
+    try {
+      await inventory.execute(interaction);
+    } catch (error) {
+      console.error(error);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: 'There was an error processing your inventory selection!', ephemeral: true });
+      }
+    }
   } else if (interaction.isButton() && interaction.customId.startsWith('collections_')) {
     try {
       const collections = require('./commands/collections.js');
@@ -167,12 +176,8 @@ client.on(Events.InteractionCreate, async interaction => {
       }
     }
   } else if (
-    interaction.isButton() && (
-      interaction.customId === 'inv_next' ||
-      interaction.customId === 'inv_prev' ||
-      interaction.customId === 'back_to_inventory' ||
-      interaction.customId === 'show_equipped'
-    )
+    interaction.isButton() &&
+    interaction.customId.startsWith('inventory_')
   ) {
     try {
       await inventory.execute(interaction);
