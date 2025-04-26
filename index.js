@@ -101,6 +101,26 @@ client.on(Events.InteractionCreate, async interaction => {
         await interaction.reply({ content: 'There was an error processing your shop selection!', ephemeral: true });
       }
     }
+  } else if (interaction.isStringSelectMenu() && interaction.customId.startsWith('collections_cat')) {
+    try {
+      const collections = require('./commands/collections.js');
+      await collections.execute(interaction);
+    } catch (error) {
+      console.error(error);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: 'There was an error processing your collections selection!', ephemeral: true });
+      }
+    }
+  } else if (interaction.isButton() && interaction.customId.startsWith('collections_')) {
+    try {
+      const collections = require('./commands/collections.js');
+      await collections.execute(interaction);
+    } catch (error) {
+      console.error(error);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: 'There was an error processing your collections pagination!', ephemeral: true });
+      }
+    }
   } else if (interaction.isStringSelectMenu() && (interaction.customId === 'setactive_house' || interaction.customId === 'setactive_mount')) {
     try {
       await setactive.handleSelect(interaction);

@@ -60,6 +60,16 @@ module.exports = {
           addGoldToInventory(character.inventory, goldAmount);
         } else {
           mergeOrAddInventoryItem(character.inventory, itemObj);
+          // Add epic/legendary weapons/armor to collections
+          if (itemObj && (itemObj.type === 'Weapon' || itemObj.type === 'Armor') && (itemObj.rarity === 'epic' || itemObj.rarity === 'legendary')) {
+            character.collections = character.collections || { houses: [], mounts: [], weapons: [], armor: [] };
+            const mergeOrAddCollectionItem = require('../mergeOrAddCollectionItem');
+            if (itemObj.type === 'Weapon') {
+              mergeOrAddCollectionItem(character.collections.weapons, itemObj);
+            } else if (itemObj.type === 'Armor') {
+              mergeOrAddCollectionItem(character.collections.armor, itemObj);
+            }
+          }
         }
       }
     } else {

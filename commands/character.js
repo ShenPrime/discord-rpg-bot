@@ -120,7 +120,7 @@ module.exports = {
       // House and mount
       // Backwards compatibility: migrate old house/mount to collections
       if (character.house && (!character.collections || !Array.isArray(character.collections.houses) || character.collections.houses.length === 0)) {
-        character.collections = character.collections || { houses: [], mounts: [] };
+        character.collections = character.collections || { houses: [], mounts: [], weapons: [], armor: [] };
         character.collections.houses = [character.house];
         character.activeHouse = character.house.name;
         delete character.house;
@@ -132,6 +132,29 @@ module.exports = {
         character.activeMount = character.mount.name;
         delete character.mount;
         await saveCharacter(userId, character);
+      }
+      // Migrate epic/legendary weapons and armor from inventory to collections
+      let migrated = false;
+      if (character.inventory && Array.isArray(character.inventory)) {
+        character.collections = character.collections || { houses: [], mounts: [], weapons: [], armor: [] };
+        const mergeOrAddCollectionItem = require('../mergeOrAddCollectionItem');
+        // Weapons
+        character.inventory.forEach(item => {
+          if (item.type === 'Weapon' && (item.rarity === 'epic' || item.rarity === 'legendary')) {
+            mergeOrAddCollectionItem(character.collections.weapons, item);
+            migrated = true;
+          }
+        });
+        // Armor
+        character.inventory.forEach(item => {
+          if (item.type === 'Armor' && (item.rarity === 'epic' || item.rarity === 'legendary')) {
+            mergeOrAddCollectionItem(character.collections.armor, item);
+            migrated = true;
+          }
+        });
+        if (migrated) {
+          await saveCharacter(userId, character);
+        }
       }
       // Show active house and mount from collections
       let houseStr = '';
