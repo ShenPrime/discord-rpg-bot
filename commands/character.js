@@ -118,6 +118,21 @@ module.exports = {
         }
       }
       // House and mount
+      // Backwards compatibility: migrate old house/mount to collections
+      if (character.house && (!character.collections || !Array.isArray(character.collections.houses) || character.collections.houses.length === 0)) {
+        character.collections = character.collections || { houses: [], mounts: [] };
+        character.collections.houses = [character.house];
+        character.activeHouse = character.house.name;
+        delete character.house;
+        await saveCharacter(userId, character);
+      }
+      if (character.mount && (!character.collections || !Array.isArray(character.collections.mounts) || character.collections.mounts.length === 0)) {
+        character.collections = character.collections || { houses: [], mounts: [] };
+        character.collections.mounts = [character.mount];
+        character.activeMount = character.mount.name;
+        delete character.mount;
+        await saveCharacter(userId, character);
+      }
       // Show active house and mount from collections
       let houseStr = '';
       if (character.collections && character.activeHouse) {

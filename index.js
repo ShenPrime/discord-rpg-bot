@@ -110,14 +110,6 @@ client.on(Events.InteractionCreate, async interaction => {
         await interaction.reply({ content: 'There was an error processing your selection!', ephemeral: true });
       }
     }
-    try {
-      await shop.handleSelect(interaction);
-    } catch (error) {
-      console.error(error);
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: 'There was an error processing your shop selection!', ephemeral: true });
-      }
-    }
   } else if (interaction.isStringSelectMenu() && interaction.customId.startsWith('sell_')) {
     try {
       await sell.handleSelect(interaction);
