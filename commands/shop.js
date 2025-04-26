@@ -6,6 +6,7 @@ const { getCharacter, saveCharacter } = require('../characterModel');
 
 const { houseTable, mountTable, armorTable, weaponTable, potionTable } = require('./loot');
 const mergeOrAddInventoryItem = require('../mergeOrAddInventoryItem');
+const mergeOrAddCollectionItem = require('../mergeOrAddCollectionItem');
 
 // Houses (scaling size & price)
 
@@ -188,6 +189,12 @@ module.exports = {
       const { CHARACTER_COLLECTIONS_DEFAULTS } = require('../characterModel');
       // Ensure collections exist
       if (!character.collections) character.collections = { ...CHARACTER_COLLECTIONS_DEFAULTS.collections };
+      // Ensure all collection arrays exist
+      if (!Array.isArray(character.collections.houses)) character.collections.houses = [];
+      if (!Array.isArray(character.collections.mounts)) character.collections.mounts = [];
+      if (!Array.isArray(character.collections.weapons)) character.collections.weapons = [];
+      if (!Array.isArray(character.collections.armor)) character.collections.armor = [];
+
       if (typeof character.activeHouse === 'undefined') character.activeHouse = null;
       if (typeof character.activeMount === 'undefined') character.activeMount = null;
       if (category === 'House') {
@@ -210,8 +217,8 @@ module.exports = {
         purchaseResults.push(`🐎 Bought **${shopItem.name}** for ${shopItem.price} Gold!`);
       } else if (category === 'Weapon') {
         // Add to collections if epic or legendary
-        if ((shopItem.rarity === 'epic' || shopItem.rarity === 'legendary') && !character.collections.weapons.some(w => w.name === shopItem.name)) {
-          character.collections.weapons.push(shopItem);
+        if (shopItem.rarity === 'epic' || shopItem.rarity === 'legendary') {
+          mergeOrAddCollectionItem(character.collections.weapons, shopItem);
         }
         // Add to inventory as usual
         const isStackable = !shopItem.uses;
@@ -223,8 +230,8 @@ module.exports = {
         purchaseResults.push(`🗡️ Bought **${shopItem.name}** for ${shopItem.price} Gold!`);
       } else if (category === 'Armor') {
         // Add to collections if epic or legendary
-        if ((shopItem.rarity === 'epic' || shopItem.rarity === 'legendary') && !character.collections.armor.some(a => a.name === shopItem.name)) {
-          character.collections.armor.push(shopItem);
+        if (shopItem.rarity === 'epic' || shopItem.rarity === 'legendary') {
+          mergeOrAddCollectionItem(character.collections.armor, shopItem);
         }
         // Add to inventory as usual
         const isStackable = !shopItem.uses;
