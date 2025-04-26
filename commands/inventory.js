@@ -118,9 +118,10 @@ inventoryItems = inventoryItems.concat(uniqueItems.filter(itemName => itemName !
           if (entry.data.boost) value += `Boost: +${entry.data.boost} ${entry.data.stat || ''}\n`;
         }
         if (entry.data && entry.data.count > 1) value += `Count: ${entry.data.count}`;
+const sellPrice = (typeof entry.data === 'object' && entry.data.price) ? Math.floor(entry.data.price * 0.4) : 4;
 return {
   name: `${icon} ${itemName}`,
-  value: value.trim() || '—',
+  value: `${value.trim() || '—'}\nSell Price: ${sellPrice} Gold`,
   inline: false
 };}));
 
