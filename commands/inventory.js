@@ -5,11 +5,39 @@ const { SlashCommandBuilder } = require('discord.js');
 const { getCharacter, saveCharacter } = require('../characterModel');
 
 
+const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+
+const ITEMS_PER_PAGE = 10;
+const INV_CATEGORIES = [
+  { label: 'Weapons', value: 'weapons' },
+  { label: 'Armor', value: 'armor' },
+  { label: 'Potions', value: 'potions' },
+  { label: 'Everything', value: 'everything' }
+];
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('inventory')
     .setDescription('Check your inventory.'),
   async execute(interaction) {
+    // Always initialize category and page to defaults
+    let category = 'everything';
+    let page = 0;
+    // Handle select menu interaction
+    if (interaction.isStringSelectMenu && interaction.isStringSelectMenu() && interaction.customId.startsWith('inventory_cat')) {
+      category = interaction.values[0];
+      const match = interaction.customId.match(/inventory_cat_(\d+)/);
+      if (match) page = parseInt(match[1], 10) || 0;
+    } else if (interaction.options && interaction.options.getString && interaction.options.getString('category')) {
+      category = interaction.options.getString('category');
+    }
+    if (interaction.isButton && interaction.isButton()) {
+      const match = interaction.customId.match(/inventory_(\w+)_(\d+)/);
+      if (match) {
+        category = match[1];
+        page = parseInt(match[2], 10) || 0;
+      }
+    }
     const isButton = interaction.isButton && interaction.isButton();
     const respond = (...args) => isButton ? interaction.update(...args) : interaction.reply(...args);
     const userId = interaction.user.id;
@@ -101,173 +129,187 @@ if (goldTotal > 0) {
   });
 }
 inventoryItems = inventoryItems.concat(uniqueItems.filter(itemName => itemName !== 'Gold').map((itemName) => {
-        const entry = itemCounts[itemName];
-        const type = getItemType(itemName);
-        const icon = typeIcons[type] || typeIcons.Default;
-        const count = entry.count;
-        let value = '';
-        if (typeof entry.data === 'object' && entry.data !== null) {
-          if (entry.data.rarity) value += `Rarity: ${entry.data.rarity}\n`;
-          if (entry.data.price) value += `Price: ${entry.data.price} Gold\n`;
+  const entry = itemCounts[itemName];
+  const type = getItemType(itemName);
+  const icon = typeIcons[type] || typeIcons.Default;
+  const count = entry.count;
+  let value = '';
+  if (typeof entry.data === 'object' && entry.data !== null) {
+    if (entry.data.rarity) value += `Rarity: ${entry.data.rarity}\n`;
+    if (entry.data.price) value += `Price: ${entry.data.price} Gold\n`;
+    if (entry.data.stats) {
+      const stats = Object.entries(entry.data.stats).map(([k, v]) => `${k.slice(0,3).toUpperCase()}: +${v}`).join(', ');
+      if (stats) value += `Stats: ${stats}\n`;
+    }
+    if (entry.data.uses) value += `Uses: ${entry.data.uses}\n`;
+    if (entry.data.boost) value += `Boost: +${entry.data.boost} ${entry.data.stat || ''}\n`;
+  }
+  if (entry.data && entry.data.count > 1) value += `Count: ${entry.data.count}`;
+  const sellPrice = (typeof entry.data === 'object' && entry.data.price) ? Math.floor(entry.data.price * 0.4) : 4;
+  return {
+    name: `${icon} ${itemName}`,
+    value: `${value.trim() || '—'}\nSell Price: ${sellPrice} Gold`,
+    inline: false
+  };
+}));
 
-          if (entry.data.stats) {
-            const stats = Object.entries(entry.data.stats).map(([k, v]) => `${k.slice(0,3).toUpperCase()}: +${v}`).join(', ');
-            if (stats) value += `Stats: ${stats}\n`;
-          }
-          if (entry.data.uses) value += `Uses: ${entry.data.uses}\n`;
-          if (entry.data.boost) value += `Boost: +${entry.data.boost} ${entry.data.stat || ''}\n`;
+// Filter items by category
+function filterByCategory(items, cat) {
+  if (cat === 'everything') return items;
+  if (cat === 'weapons') return items.filter(i => /⚔️/.test(i.name));
+  if (cat === 'armor') return items.filter(i => /🛡️/.test(i.name));
+  if (cat === 'potions') return items.filter(i => /🧪/.test(i.name));
+  return items;
+}
+if (!category) category = 'everything';
+const filtered = filterByCategory(inventoryItems, category);
+const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+if (page < 0) page = 0;
+if (page >= totalPages) page = totalPages - 1;
+const pagedItems = filtered.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
+const embed = new EmbedBuilder()
+  .setTitle(`${interaction.user.username}'s Inventory — ${INV_CATEGORIES.find(c => c.value === category).label}`)
+  .setColor(0xffd700)
+  .setFooter({ text: `Page ${page + 1} of ${totalPages}` })
+  .setDescription(pagedItems.length ? pagedItems.map(i => `${i.name}\n${i.value}`).join('\n\n') : 'No items in this category.');
+// Category select
+const selectRow = new ActionRowBuilder().addComponents(
+  new StringSelectMenuBuilder()
+    .setCustomId(`inventory_cat_${page}`)
+    .setPlaceholder('Select category')
+    .addOptions(INV_CATEGORIES.map(c => ({ label: c.label, value: c.value, default: c.value === category })))
+);
+// Pagination buttons
+const buttonRow = new ActionRowBuilder();
+const prevButton = new ButtonBuilder()
+  .setCustomId(`inventory_${category}_${page - 1}`)
+  .setLabel('Previous')
+  .setStyle(ButtonStyle.Secondary)
+  .setDisabled(page === 0);
+const nextButton = new ButtonBuilder()
+  .setCustomId(`inventory_${category}_${page + 1}`)
+  .setLabel('Next')
+  .setStyle(ButtonStyle.Secondary)
+  .setDisabled(page === totalPages - 1);
+const sellAllButton = new ButtonBuilder()
+  .setCustomId('inventory_sell_all')
+  .setLabel('Sell All Unequipped')
+  .setStyle(ButtonStyle.Danger);
+buttonRow.addComponents(prevButton, nextButton, sellAllButton);
+
+const confirmSellAllRow = new ActionRowBuilder().addComponents(
+  new ButtonBuilder()
+    .setCustomId('inventory_sell_all_confirm')
+    .setLabel('Yes, Sell All')
+    .setStyle(ButtonStyle.Danger),
+  new ButtonBuilder()
+    .setCustomId('inventory_sell_all_cancel')
+    .setLabel('No, Cancel')
+    .setStyle(ButtonStyle.Secondary)
+);
+// Respond or update
+if (interaction.isButton && interaction.isButton() && interaction.customId === 'inventory_sell_all') {
+  // Prompt user for confirmation
+  await interaction.update({
+    content: 'Are you sure? This will sell **all unequipped items** except for **potions** and items of rarity **epic** or **legendary**? This cannot be undone.',
+    embeds: [],
+    components: [confirmSellAllRow],
+    ephemeral: true
+  });
+  return;
+}
+if (interaction.isButton && interaction.isButton() && interaction.customId === 'inventory_sell_all_confirm') {
+  // Sell all unequipped items except potions and epic/legendary
+  const saleSummary = [];
+  let sellableGold = 0;
+  let updatedInventory = [];
+  for (const item of character.inventory) {
+    if (typeof item === 'object' && item.name !== 'Gold') {
+      const isPotion = /potion/i.test(item.name);
+      const rarity = (item.rarity || (item.data && item.data.rarity) || '').toLowerCase();
+      const isEpicOrLegendary = rarity === 'epic' || rarity === 'legendary';
+      const equippedCount = equippedCounts[item.name] || 0;
+      const count = item.count || 1;
+      const unequippedCount = count - equippedCount;
+      const sellPrice = item.price ? Math.floor(item.price * 0.4) : 4;
+      if (!isPotion && !isEpicOrLegendary && unequippedCount > 0) {
+        sellableGold += sellPrice * unequippedCount;
+        saleSummary.push({ name: item.name, count: unequippedCount, gold: sellPrice * unequippedCount });
+        if (equippedCount > 0) {
+          // Keep equipped copies
+          updatedInventory.push({ ...item, count: equippedCount });
         }
-        if (entry.data && entry.data.count > 1) value += `Count: ${entry.data.count}`;
-return {
-  name: `${icon} ${itemName}`,
-  value: value.trim() || '—',
-  inline: false
-};}));
-
-      // Pagination logic
-      const ITEMS_PER_PAGE = 10;
-      let page = 0;
-      if (interaction.options && interaction.options.getInteger && interaction.options.getInteger('page') !== null) {
-        page = interaction.options.getInteger('page') - 1;
+        // else: do not push (all copies sold)
+      } else {
+        updatedInventory.push(item);
       }
-      const totalPages = Math.ceil(inventoryItems.length / ITEMS_PER_PAGE) || 1;
-      if (page < 0) page = 0;
-      if (page >= totalPages) page = totalPages - 1;
-      const pagedItems = inventoryItems.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
-
-      const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
-      const embed = new EmbedBuilder()
-        .setTitle(`${interaction.user.username}'s Inventory`)
-        .setColor(0xffd700)
-        .setFooter({ text: `Page ${page + 1} of ${totalPages}` });
-      pagedItems.forEach(item => embed.addFields(item));
-
-      // Always add 'Show Equipped' button
-      const row = new ActionRowBuilder();
-      row.addComponents(
-        new ButtonBuilder()
-          .setCustomId('show_equipped')
-          .setLabel('Show Equipped')
-          .setStyle(ButtonStyle.Primary)
-      );
-      if (totalPages > 1) {
-        row.addComponents(
-          new ButtonBuilder()
-            .setCustomId('inv_prev')
-            .setLabel('Previous')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(page === 0),
-          new ButtonBuilder()
-            .setCustomId('inv_next')
-            .setLabel('Next')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(page === totalPages - 1)
-        );
-      }
-      // Button interaction logic is now handled globally in index.js
-      // Handle button actions directly here if invoked as a button
-      if (isButton) {
-        let customId = interaction.customId;
-        // Parse page from message footer if available
-        let currentPage = 0;
-        const footer = interaction.message?.embeds?.[0]?.footer?.text;
-        if (footer) {
-          const match = footer.match(/Page (\d+) of (\d+)/);
-          if (match) currentPage = parseInt(match[1], 10) - 1;
-        }
-        let page = currentPage;
-        if (customId === 'inv_next') page++;
-        if (customId === 'inv_prev') page--;
-        if (page < 0) page = 0;
-        const totalPages = Math.ceil(inventoryItems.length / ITEMS_PER_PAGE) || 1;
-        if (page >= totalPages) page = totalPages - 1;
-        const pagedItems = inventoryItems.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
-        const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
-        if (customId === 'show_equipped') {
-          // Show only equipped items
-          const slotOrder = ['head', 'arms', 'chest', 'legs', 'necklace', 'ring1', 'ring2', 'weapon'];
-          const { lootTable } = require('./loot');
-          const equippedItems = slotOrder
-            .filter(slot => character.equipment && character.equipment[slot])
-            .map(slot => {
-              const itemName = character.equipment[slot];
-              const lootItem = lootTable.find(i => i.name === itemName && i.stats);
-              let statsStr = '';
-              if (lootItem && lootItem.stats) {
-                statsStr = Object.entries(lootItem.stats)
-                  .map(([k, v]) => `+${v} ${k.slice(0,3).toUpperCase()}`)
-                  .join(', ');
-              }
-              return {
-                name: `${slot.charAt(0).toUpperCase() + slot.slice(1)}`,
-                value: itemName + (statsStr ? `\n${statsStr}` : ''),
-                inline: false
-              };            });
-          const equipEmbed = new EmbedBuilder()
-            .setTitle(`${interaction.user.username}'s Equipped Items`)
-            .setColor(0x00bfff);
-          if (equippedItems.length) {
-            equippedItems.forEach(item => equipEmbed.addFields(item));
-          } else {
-            equipEmbed.setDescription('No items equipped.');
-          }
-          // Show equipped items, add back button
-          const backRow = new ActionRowBuilder()
-            .addComponents(
-              new ButtonBuilder()
-                .setCustomId('back_to_inventory')
-                .setLabel('Back to Inventory')
-                .setStyle(ButtonStyle.Primary)
-            );
-          await interaction.update({
-            embeds: [equipEmbed],
-            components: [backRow],
-            ephemeral: true
-          });
-          return;
-        }
-        if (customId === 'back_to_inventory') {
-          page = 0;
-        }
-        const embed = new (require('discord.js')).EmbedBuilder()
-          .setTitle(`${interaction.user.username}'s Inventory`)
-          .setColor(0xffd700)
-          .setFooter({ text: `Page ${page + 1} of ${totalPages}` });
-        pagedItems.forEach(item => embed.addFields(item));
-        const row = new ActionRowBuilder();
-        row.addComponents(
-          new ButtonBuilder()
-            .setCustomId('show_equipped')
-            .setLabel('Show Equipped')
-            .setStyle(ButtonStyle.Primary)
-        );
-        if (totalPages > 1) {
-          row.addComponents(
-            new ButtonBuilder()
-              .setCustomId('inv_prev')
-              .setLabel('Previous')
-              .setStyle(ButtonStyle.Secondary)
-              .setDisabled(page === 0),
-            new ButtonBuilder()
-              .setCustomId('inv_next')
-              .setLabel('Next')
-              .setStyle(ButtonStyle.Secondary)
-              .setDisabled(page === totalPages - 1)
-          );
-        }
-        await interaction.update({
-          embeds: [embed],
-          components: [row],
-          ephemeral: true
-        });
-        return;
-      }
-      // Otherwise, respond to slash command
-      await saveCharacter(userId, character);
-      await respond({
-        embeds: [embed],
-        components: [row],
-        ephemeral: true
-      });
+    } else {
+      updatedInventory.push(item);
     }
   }
+  // Update gold
+  let goldItem = updatedInventory.find(i => typeof i === 'object' && i.name === 'Gold');
+  if (!goldItem) {
+    goldItem = { name: 'Gold', count: 0, rarity: 'common', price: 1 };
+    updatedInventory.unshift(goldItem);
+  }
+  goldItem.count += sellableGold;
+  character.inventory = updatedInventory;
+  await saveCharacter(userId, character);
+  // Sort sale summary by gold descending
+  saleSummary.sort((a, b) => b.gold - a.gold);
+  // Paginated sale summary
+  const { getSaleSummaryEmbed } = require('./saleSummary');
+  const summaryPage = 0;
+  const { embed, components } = getSaleSummaryEmbed(saleSummary, sellableGold, summaryPage);
+  await interaction.update({
+    content: saleSummary.length ? undefined : 'No unequipped items to sell!',
+    embeds: saleSummary.length ? [embed] : [],
+    components: saleSummary.length ? components : [],
+    ephemeral: true
+  });
+  // Store summary in memory for pagination (could use a cache or DB for persistence)
+  interaction.client._lastSaleSummary = {
+    userId,
+    saleSummary,
+    totalGold: sellableGold
+  };
+  return;
+}
+// Sale summary pagination
+if (
+  interaction.isButton && interaction.isButton() &&
+  (interaction.customId.startsWith('sale_summary_prev_') || interaction.customId.startsWith('sale_summary_next_'))
+) {
+  const match = interaction.customId.match(/sale_summary_(?:prev|next)_(\d+)/);
+  const page = match ? parseInt(match[1], 10) : 0;
+  const summaryData = interaction.client._lastSaleSummary;
+  if (!summaryData || summaryData.userId !== userId) {
+    await interaction.update({ content: 'Sale summary not found or expired.', embeds: [], components: [], ephemeral: true });
+    return;
+  }
+  const { getSaleSummaryEmbed } = require('./saleSummary');
+  const { embed, components } = getSaleSummaryEmbed(summaryData.saleSummary, summaryData.totalGold, page);
+  await interaction.update({ embeds: [embed], components, ephemeral: true });
+  return;
+}
+if (interaction.isButton && interaction.isButton() && interaction.customId === 'inventory_sell_all_cancel') {
+  // Cancel and return to inventory
+  await interaction.update({
+    content: 'Sell all unequipped cancelled.',
+    embeds: [],
+    components: [],
+    ephemeral: true
+  });
+  return;
+}
+if (interaction.isButton && interaction.isButton()) {
+  await interaction.update({ embeds: [embed], components: [selectRow, buttonRow], ephemeral: true });
+} else if (interaction.isStringSelectMenu && interaction.isStringSelectMenu()) {
+  await interaction.update({ embeds: [embed], components: [selectRow, buttonRow], ephemeral: true });
+} else {
+  await interaction.reply({ embeds: [embed], components: [selectRow, buttonRow], ephemeral: true });
+}
+return;
+  }
+}

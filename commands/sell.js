@@ -47,7 +47,7 @@ module.exports = {
     }
     // Build options for select menu
     const options = items.map(item => ({
-      label: `${item.name} - ${item.price || 10} Gold${item.count > 1 ? ` (x${item.count})` : ''}`,
+      label: `${item.name} - ${Math.floor((item.price || 10) * 0.4)} Gold${item.count > 1 ? ` (x${item.count})` : ''}`,
       value: String(item.__invIdx),
       description: item.name.length < 90 ? item.name : item.name.slice(0, 90)
     }));
@@ -327,10 +327,10 @@ You cannot mix stackables and singles or select multiple stackables.`,
       } else {
         character.inventory.splice(invIdx, 1);
       }
-      addGoldToInventory(character.inventory, price * qty);
+      addGoldToInventory(character.inventory, sellPrice * qty);
       await saveCharacter(userId, character);
       await interaction.reply({
-        content: `✅ Sold **${item.name}** x${qty} for ${price * qty} Gold!`,
+        content: `✅ Sold **${item.name}** x${qty} for ${sellPrice * qty} Gold!`,
         ephemeral: true
       });
       return;

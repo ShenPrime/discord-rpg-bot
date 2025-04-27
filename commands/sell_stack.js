@@ -88,6 +88,7 @@ module.exports = {
     let item = character.inventory[invIdx];
     let name = typeof item === 'string' ? item : item.name;
     let price = (typeof item === 'object' && item.price) ? item.price : 10;
+    let sellPrice = Math.floor(price * 0.4);
     let count = (typeof item === 'object' && item.count) ? item.count : 1;
     if (quantity === 'all') quantity = count;
     else quantity = parseInt(quantity, 10);
@@ -96,7 +97,7 @@ module.exports = {
       return;
     }
     // Remove/sell the quantity
-    let goldEarned = price * quantity;
+    let goldEarned = sellPrice * quantity;
     if (typeof item === 'object' && item.count && item.count > quantity) {
       item.count -= quantity;
       character.inventory[invIdx] = item;
@@ -108,7 +109,7 @@ module.exports = {
     addGoldToInventory(character.inventory, goldEarned);
     await saveCharacter(userId, character);
     await interaction.reply({
-      content: `✅ Sold **${name}** x${quantity} for ${goldEarned} Gold!`,
+      content: `✅ Sold **${name}** x${quantity} for ${goldEarned} Gold! (40% of buy price)`, 
       ephemeral: true
     });
   }

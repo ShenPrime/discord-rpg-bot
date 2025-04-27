@@ -3,3 +3,5 @@
 node_modules
 ./characters.json
 db.json-temp
+migrate_potion_stacks.js
+migrate_collections.js

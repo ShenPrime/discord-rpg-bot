@@ -133,11 +133,15 @@ const houseTable = [
   { name: 'Villa', type: 'House', price: 200000, size: 'Large', description: 'A luxurious villa with gardens.' },
   { name: 'Mansion', type: 'House', price: 500000, size: 'Huge', description: 'A sprawling mansion with many rooms.' },
   { name: 'Castle', type: 'House', price: 1000000, size: 'Epic', description: 'A legendary castle fit for a king or queen.' },
+  { name: 'Palace', type: 'House', price: 10000000, size: 'Legendary', description: 'A majestic palace for the truly legendary.' },
+  { name: 'Island', type: 'House', price: 20000000, size: 'Paradise', description: 'A private island paradise away from all those stinky poor people.' },
+
 ];
 
 // shop table array for mounts
 const mountTable = [
   { name: 'Horse', type: 'Mount', price: 10000, description: 'A horse. Fast and reliable.' },
+  { name: 'Lion', type: 'Mount', price: 50000, description: 'A lion. Fast and Fierce.' },
   { name: 'Dragon', type: 'Mount', price: 100000, description: 'A dragon. Fast and powerful.' },
   { name: 'Unicorn', type: 'Mount', price: 500000, description: 'A unicorn. Fast and magical.' },
   { name: 'Phoenix', type: 'Mount', price: 1000000, description: 'A phoenix. Fast and legendary.' },
