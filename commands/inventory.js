@@ -191,8 +191,118 @@ const nextButton = new ButtonBuilder()
   .setLabel('Next')
   .setStyle(ButtonStyle.Secondary)
   .setDisabled(page === totalPages - 1);
-buttonRow.addComponents(prevButton, nextButton);
+const sellAllButton = new ButtonBuilder()
+  .setCustomId('inventory_sell_all')
+  .setLabel('Sell All Unequipped')
+  .setStyle(ButtonStyle.Danger);
+buttonRow.addComponents(prevButton, nextButton, sellAllButton);
+
+const confirmSellAllRow = new ActionRowBuilder().addComponents(
+  new ButtonBuilder()
+    .setCustomId('inventory_sell_all_confirm')
+    .setLabel('Yes, Sell All')
+    .setStyle(ButtonStyle.Danger),
+  new ButtonBuilder()
+    .setCustomId('inventory_sell_all_cancel')
+    .setLabel('No, Cancel')
+    .setStyle(ButtonStyle.Secondary)
+);
 // Respond or update
+if (interaction.isButton && interaction.isButton() && interaction.customId === 'inventory_sell_all') {
+  // Prompt user for confirmation
+  await interaction.update({
+    content: 'Are you sure? This will sell **all unequipped items** except for **potions** and items of rarity **epic** or **legendary**? This cannot be undone.',
+    embeds: [],
+    components: [confirmSellAllRow],
+    ephemeral: true
+  });
+  return;
+}
+if (interaction.isButton && interaction.isButton() && interaction.customId === 'inventory_sell_all_confirm') {
+  // Sell all unequipped items except potions and epic/legendary
+  const saleSummary = [];
+  let sellableGold = 0;
+  let updatedInventory = [];
+  for (const item of character.inventory) {
+    if (typeof item === 'object' && item.name !== 'Gold') {
+      const isPotion = /potion/i.test(item.name);
+      const rarity = (item.rarity || (item.data && item.data.rarity) || '').toLowerCase();
+      const isEpicOrLegendary = rarity === 'epic' || rarity === 'legendary';
+      const equippedCount = equippedCounts[item.name] || 0;
+      const count = item.count || 1;
+      const unequippedCount = count - equippedCount;
+      const sellPrice = item.price ? Math.floor(item.price * 0.4) : 4;
+      if (!isPotion && !isEpicOrLegendary && unequippedCount > 0) {
+        sellableGold += sellPrice * unequippedCount;
+        saleSummary.push({ name: item.name, count: unequippedCount, gold: sellPrice * unequippedCount });
+        if (equippedCount > 0) {
+          // Keep equipped copies
+          updatedInventory.push({ ...item, count: equippedCount });
+        }
+        // else: do not push (all copies sold)
+      } else {
+        updatedInventory.push(item);
+      }
+    } else {
+      updatedInventory.push(item);
+    }
+  }
+  // Update gold
+  let goldItem = updatedInventory.find(i => typeof i === 'object' && i.name === 'Gold');
+  if (!goldItem) {
+    goldItem = { name: 'Gold', count: 0, rarity: 'common', price: 1 };
+    updatedInventory.unshift(goldItem);
+  }
+  goldItem.count += sellableGold;
+  character.inventory = updatedInventory;
+  await saveCharacter(userId, character);
+  // Sort sale summary by gold descending
+  saleSummary.sort((a, b) => b.gold - a.gold);
+  // Paginated sale summary
+  const { getSaleSummaryEmbed } = require('./saleSummary');
+  const summaryPage = 0;
+  const { embed, components } = getSaleSummaryEmbed(saleSummary, sellableGold, summaryPage);
+  await interaction.update({
+    content: saleSummary.length ? undefined : 'No unequipped items to sell!',
+    embeds: saleSummary.length ? [embed] : [],
+    components: saleSummary.length ? components : [],
+    ephemeral: true
+  });
+  // Store summary in memory for pagination (could use a cache or DB for persistence)
+  interaction.client._lastSaleSummary = {
+    userId,
+    saleSummary,
+    totalGold: sellableGold
+  };
+  return;
+}
+// Sale summary pagination
+if (
+  interaction.isButton && interaction.isButton() &&
+  (interaction.customId.startsWith('sale_summary_prev_') || interaction.customId.startsWith('sale_summary_next_'))
+) {
+  const match = interaction.customId.match(/sale_summary_(?:prev|next)_(\d+)/);
+  const page = match ? parseInt(match[1], 10) : 0;
+  const summaryData = interaction.client._lastSaleSummary;
+  if (!summaryData || summaryData.userId !== userId) {
+    await interaction.update({ content: 'Sale summary not found or expired.', embeds: [], components: [], ephemeral: true });
+    return;
+  }
+  const { getSaleSummaryEmbed } = require('./saleSummary');
+  const { embed, components } = getSaleSummaryEmbed(summaryData.saleSummary, summaryData.totalGold, page);
+  await interaction.update({ embeds: [embed], components, ephemeral: true });
+  return;
+}
+if (interaction.isButton && interaction.isButton() && interaction.customId === 'inventory_sell_all_cancel') {
+  // Cancel and return to inventory
+  await interaction.update({
+    content: 'Sell all unequipped cancelled.',
+    embeds: [],
+    components: [],
+    ephemeral: true
+  });
+  return;
+}
 if (interaction.isButton && interaction.isButton()) {
   await interaction.update({ embeds: [embed], components: [selectRow, buttonRow], ephemeral: true });
 } else if (interaction.isStringSelectMenu && interaction.isStringSelectMenu()) {

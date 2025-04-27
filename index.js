@@ -177,7 +177,9 @@ client.on(Events.InteractionCreate, async interaction => {
     }
   } else if (
     interaction.isButton() &&
-    interaction.customId.startsWith('inventory_')
+    (interaction.customId.startsWith('inventory_') ||
+     interaction.customId.startsWith('sale_summary_prev_') ||
+     interaction.customId.startsWith('sale_summary_next_'))
   ) {
     try {
       await inventory.execute(interaction);
