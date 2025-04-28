@@ -33,7 +33,9 @@ module.exports = {
         if (!item || typeof item !== 'object') return false;
         const count = item.count || 1;
         if (count < 1) return false;
-        if (/gold/i.test(item.name)) return false;
+        // Exclude gold/currency by type or by exact name
+if ((item.type && item.type.toLowerCase() === 'currency') || (item.type && item.type.toLowerCase() === 'gold')) return false;
+if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') return false;
         if (equippedNames.has(item.name)) return false;
         return true;
       });
@@ -47,7 +49,7 @@ module.exports = {
     }
     // Build options for select menu
     const options = items.map(item => ({
-      label: `${item.name} - ${Math.floor((item.price || 10) * 0.4)} Gold${item.count > 1 ? ` (x${item.count})` : ''}`,
+      label: `${item.name} - ${Math.floor((item.price || 10) * 0.2)} Gold${item.count > 1 ? ` (x${item.count})` : ''}`,
       value: String(item.__invIdx),
       description: item.name.length < 90 ? item.name : item.name.slice(0, 90)
     }));
@@ -149,9 +151,9 @@ module.exports = {
         // Sort indices descending so splicing doesn't affect subsequent indices
         for (const idx of selectedIndices.sort((a, b) => b - a)) {
           const item = character.inventory[idx];
-          const price = item.price || 10;
-          soldItems.push(`**${item.name}** for ${price} Gold`);
-          totalGold += price;
+          const sellPrice = Math.floor((item.price || 10) * 0.2);
+          soldItems.push(`**${item.name}** for ${sellPrice} Gold`);
+          totalGold += sellPrice;
           character.inventory.splice(idx, 1);
         }
         if (soldItems.length === 0) {
@@ -240,15 +242,15 @@ You cannot mix stackables and singles or select multiple stackables.`,
             messages.push(`❌ ${item.name}: Sell between 1 and ${item.count}.`);
             continue;
           }
-          const price = item.price || 10;
+          const sellPrice = Math.floor((item.price || 10) * 0.2);
           if (item.count > qty) {
             item.count -= qty;
             character.inventory[invIdx] = item;
           } else {
             indicesToRemove.push(invIdx);
           }
-          totalGold += price * qty;
-          messages.push(`✅ Sold **${item.name}** x${qty} for ${price * qty} Gold!`);
+          totalGold += sellPrice * qty;
+          messages.push(`✅ Sold **${item.name}** x${qty} for ${sellPrice * qty} Gold!`);
         }
         // Remove sold-out items after processing all
         indicesToRemove.sort((a, b) => b - a).forEach(idx => character.inventory.splice(idx, 1));
