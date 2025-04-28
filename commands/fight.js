@@ -1,5 +1,6 @@
 // commands/fight.js
 const { SlashCommandBuilder } = require('discord.js');
+const { lootTable } = require('./loot');
 const mergeOrAddInventoryItem = require('../mergeOrAddInventoryItem');
 
 module.exports = {
@@ -17,57 +18,99 @@ module.exports = {
       await respond({ content: 'You do not have a character yet. Use /character to create one!', ephemeral: true });
       return;
     }
-    // Stat-based outcome
-    // Apply temporary stat boosts from activeEffects
-    let str = character.stats?.strength || 2;
-    let def = character.stats?.defense || 2;
-    let luck = character.stats?.luck || 2;
+    // Overhauled fight logic: D20 + stat modifiers
+    // Player strength = level (plus any active effects)
     const level = character.level || 1;
-    if (character.activeEffects && Array.isArray(character.activeEffects)) {
-      for (const effect of character.activeEffects) {
-        if (effect.stat === 'strength') str += effect.boost;
-        if (effect.stat === 'defense') def += effect.boost;
-        if (effect.stat === 'luck') luck += effect.boost;
+    // Calculate player modifier as the sum of TOTAL STR, DEF, LUCK (base + equipment + temp effects)
+    const statKeys = ['strength', 'defense', 'luck'];
+    // Base stats
+    let baseStats = { strength: character.stats?.strength ?? 0, defense: character.stats?.defense ?? 0, luck: character.stats?.luck ?? 0 };
+    // Equipment bonuses
+    let eqStats = { strength: 0, defense: 0, luck: 0 };
+    if (character.equipment) {
+      for (const [slot, itemName] of Object.entries(character.equipment)) {
+        const lootItem = lootTable.find(i => i.name === itemName && i.stats);
+        if (lootItem && lootItem.stats) {
+          for (const [stat, val] of Object.entries(lootItem.stats)) {
+            if (statKeys.includes(stat)) {
+              eqStats[stat] = (eqStats[stat] || 0) + val;
+            }
+          }
+        }
       }
     }
-    // Win chance: 10% base + 0.7% per STR + 1.5% per level, soft capped with tanh (max ~90%)
-    const rawChance = 0.10 + (str * 0.007) + (level * 0.015);
-    const winChance = 0.9 * Math.tanh(rawChance / 0.9);
-    // Draw chance: 15% base + 1.5% per DEF (max 45%)
-    const drawChance = Math.min(0.15 + def * 0.015, 0.45);
-    // Crit chance: 1% per LUCK + 1% per level, soft capped with tanh (max ~40%)
-    const critRaw = (luck * 0.01) + (level * 0.01);
-    const critChance = 0.4 * Math.tanh(critRaw / 0.4);
-    const roll = Math.random();
+    // Temporary effects
+    let tempStats = { strength: 0, defense: 0, luck: 0 };
+    if (character.activeEffects && Array.isArray(character.activeEffects)) {
+      for (const effect of character.activeEffects) {
+        if (statKeys.includes(effect.stat)) {
+          tempStats[effect.stat] += effect.boost;
+        }
+      }
+    }
+    // Total stats
+    let totalStats = { ...baseStats };
+    for (const stat of statKeys) {
+      totalStats[stat] = (totalStats[stat] || 0) + (eqStats[stat] || 0) + (tempStats[stat] || 0);
+    }
+    const playerStrength = totalStats.strength;
+    const playerDefense = totalStats.defense;
+    const playerLuck = totalStats.luck;
+    const playerModifier = playerStrength + playerDefense + playerLuck;
+    // Enemy strength = player level * 3
+    const enemyStrength = level * 3;
+    // Roll D20 for both
+    const playerRoll = Math.floor(Math.random() * 20) + 1;
+    const enemyRoll = Math.floor(Math.random() * 20) + 1;
+    const playerTotal = playerRoll + playerModifier;
+    const enemyTotal = enemyRoll + enemyStrength;
     let outcome, reason, xpGained = 0, loot = null, lootMsg = '', levelUpMsg = '';
     // Use centralized loot table
-    const { lootTable } = require('./loot');
+   
     const { getLootByType, weightedRandomItem } = require('../lootUtils');
-    if (roll < critChance) {
-      outcome = 'Critical hit! You won effortlessly.';
-      reason = `Your luck (${luck}) paid off!`;
-      xpGained = Math.floor(Math.random() * 41) + 80; // 80-120 XP
-      // Guaranteed rare loot
-      // Pick a rare loot type
-      const rareTypes = ['weapon', 'armor', 'potion'];
-      const lootType = rareTypes[Math.floor(Math.random() * rareTypes.length)];
-      const lootItems = getLootByType(lootType);
-      loot = weightedRandomItem(lootItems);
-      if (loot) {
-        lootMsg = `You found: **${loot.name}**! (Rarity: ${loot.rarity})`;
-      }
-    } else if (roll < critChance + winChance) {
+    if (playerTotal > enemyTotal) {
       outcome = 'You defeated the enemy and gained experience!';
-      reason = `Your strength (${str}) and level (${level}) led to victory.`;
+      reason = `You rolled a **${playerRoll}** + stat modifier (**${playerModifier}**, STR ${playerStrength} + DEF ${playerDefense} + LUCK ${playerLuck}) = **${playerTotal}**\nEnemy rolled a **${enemyRoll}** + strength modifier (**${enemyStrength}**) = **${enemyTotal}**\nVictory!`;
       xpGained = Math.floor(Math.random() * 31) + 40; // 40-70 XP
-      // 60% chance for loot
-      if (Math.random() < 0.6) {
-        // 40% rare loot, 60% gold (luck increases rare chance, nerfed to +0.2% per luck)
-        const rareChance = Math.min(0.4 + luck * 0.002, 0.95);
+      // 40% chance for loot
+      if (Math.random() < 0.4) {
+        // 2% familiar, 9.8% weapon, 29.4% gem, 19.6% armor, 39.2% currency
         let lootType;
-        if (Math.random() < rareChance) {
-          const rareTypes = ['weapon', 'armor', 'potion', 'gem'];
-          lootType = rareTypes[Math.floor(Math.random() * rareTypes.length)];
+        const roll = Math.random();
+        if (roll < 0.02) {
+          lootType = 'familiar';
+        } else if (roll < 0.118) {
+          lootType = 'weapon';
+        } else if (roll < 0.412) {
+          lootType = 'gem';
+        } else if (roll < 0.608) {
+          lootType = 'armor';
+        } else {
+          lootType = 'currency';
+        }
+        let lootItems;
+        if (lootType === 'familiar') {
+          // require familiarTable from loot.js
+          const { familiarTable } = require('./loot');
+          lootItems = familiarTable;
+        } else {
+          lootItems = getLootByType(lootTable, lootType);
+        }
+        loot = weightedRandomItem(lootItems);
+        if (loot) {
+          lootMsg = `You found: **${loot.name}**! (Rarity: ${loot.rarity})`;
+        }
+      }
+    } else if (playerTotal < enemyTotal) {
+      outcome = 'You were defeated by the enemy.';
+      reason = `You rolled a **${playerRoll}** + stat modifier (**${playerModifier}**, STR ${playerStrength} + DEF ${playerDefense} + LUCK ${playerLuck}) = **${playerTotal}**\nEnemy rolled a **${enemyRoll}** + strength modifier (**${enemyStrength}**) = **${enemyTotal}**\nDefeat.`;
+      reason += `\nYou lost, but you keep your XP.`;
+      if (Math.random() < 0.2) {
+        // Only gems or gold can drop on defeat
+        let lootType;
+        const roll = Math.random();
+        if (roll < 0.3) {
+          lootType = 'gem';
         } else {
           lootType = 'currency';
         }
@@ -77,39 +120,10 @@ module.exports = {
           lootMsg = `You found: **${loot.name}**! (Rarity: ${loot.rarity})`;
         }
       }
-    } else if (roll < critChance + winChance + drawChance) {
-      outcome = 'You fought bravely but the battle was a draw.';
-      reason = `Your defense (${def}) helped you hold your ground.`;
-      xpGained = Math.floor(Math.random() * 6) + 5; // 5-10 XP
     } else {
-      outcome = 'The enemy was too strong. You had to retreat!';
-      reason = 'Better luck (and stats) next time!';
-      // Penalty: lose XP and possibly items
-      // XP penalty now scales with level, and DEF reduces the penalty
-      const level = character.level || 1;
-      let basePenalty = (level * 5) + Math.floor(Math.random() * (level * 3 + 1)); // e.g. lvl 30: 150-240
-      let defReduction = def * 0.0025; // 0.25% per DEF, no cap
-      let xpPenalty = Math.max(1, Math.floor(basePenalty * (1 - defReduction)));
-      character.xp = Math.max(0, (character.xp || 0) - xpPenalty);
-      if (def > 0) {
-        reason += `\nYou lost ${xpPenalty} XP! (Base: ${basePenalty}, DEF reduced penalty by ${(defReduction*100).toFixed(2)}%)`;
-      } else {
-        reason += `\nYou lost ${xpPenalty} XP!`;
-      }
-      // Lose 1-2 random equipped items (gear) if any
-      if (character.equipment && Object.keys(character.equipment).length > 0) {
-        const equippedItems = Object.entries(character.equipment);
-        const itemsToLose = Math.min(equippedItems.length, Math.floor(Math.random() * 2) + 1);
-        let lostItems = [];
-        for (let i = 0; i < itemsToLose; i++) {
-          if (equippedItems.length === 0) break;
-          const idx = Math.floor(Math.random() * equippedItems.length);
-          const [slot, item] = equippedItems.splice(idx, 1)[0];
-          lostItems.push(item);
-          delete character.equipment[slot];
-        }
-        reason += `\nYou dropped: ${lostItems.map(x => `**${x}**`).join(', ')} from your equipped gear!`;
-      }
+      outcome = 'The battle was a draw.';
+      reason = `You rolled a **${playerRoll}** + stat modifier (**${playerModifier}**, STR ${playerStrength} + DEF ${playerDefense} + LUCK ${playerLuck}) = **${playerTotal}**\nEnemy rolled a **${enemyRoll}** + strength modifier (**${enemyStrength}**) = **${enemyTotal}**\nIt was a tie!`;
+      xpGained = Math.floor(Math.random() * 6) + 5; // 5-10 XP
     }
     // Apply rewards
     if (xpGained > 0) {
@@ -117,29 +131,42 @@ module.exports = {
       reason += `\nYou gained ${xpGained} XP!`;
     }
     if (loot) {
-      if (!Array.isArray(character.inventory)) character.inventory = [];
-      // Match /explore.js: Directly merge currency/gold loot
-      if (loot.type === 'currency' && loot.name.match(/Gold/i)) {
-        const addGoldToInventory = require('../addGoldToInventory');
-        let goldAmount = loot.count || loot.amount || loot.price || 1;
-        addGoldToInventory(character.inventory, goldAmount);
-      } else {
-        // All items except those with 'uses' should be stackable
-        const isStackable = loot && !loot.uses;
-        if (isStackable) {
-          mergeOrAddInventoryItem(character.inventory, loot);
-          // Add epic/legendary weapons/armor to collections
-          if (loot && (loot.type === 'Weapon' || loot.type === 'Armor') && (loot.rarity === 'epic' || loot.rarity === 'legendary')) {
-            character.collections = character.collections || { houses: [], mounts: [], weapons: [], armor: [] };
-            const mergeOrAddCollectionItem = require('../mergeOrAddCollectionItem');
-            if (loot.type === 'Weapon') {
-              mergeOrAddCollectionItem(character.collections.weapons, loot);
-            } else if (loot.type === 'Armor') {
-              mergeOrAddCollectionItem(character.collections.armor, loot);
-            }
-          }
+      if (loot.type === 'Familiar' || loot.type === 'familiar') {
+        character.collections = character.collections || {};
+        character.collections.familiars = character.collections.familiars || [];
+        const existing = character.collections.familiars.find(f => f.name === loot.name);
+        if (!existing) {
+          character.collections.familiars.push({ name: loot.name, rarity: loot.rarity, count: 1 });
+          lootMsg = `🎉 You befriended a new Familiar: **${loot.name}**! (Rarity: ${loot.rarity})\nIt has been added to your Collections.`;
         } else {
-          character.inventory.push({ ...loot, count: 1 });
+          existing.count = (existing.count || 1) + 1;
+          lootMsg = `You encountered **${loot.name}** again! (Rarity: ${loot.rarity})\nYour collection count for this Familiar is now ${existing.count}.`;
+        }
+      } else {
+        if (!Array.isArray(character.inventory)) character.inventory = [];
+        // Match /explore.js: Directly merge currency/gold loot
+        if (loot.type === 'currency' && loot.name.match(/Gold/i)) {
+          const addGoldToInventory = require('../addGoldToInventory');
+          let goldAmount = loot.count || loot.amount || loot.price || 1;
+          addGoldToInventory(character.inventory, goldAmount);
+        } else {
+          // All items except those with 'uses' should be stackable
+          const isStackable = loot && !loot.uses;
+          if (isStackable) {
+            mergeOrAddInventoryItem(character.inventory, loot);
+            // Add epic/legendary weapons/armor to collections
+            if (loot && (loot.type === 'Weapon' || loot.type === 'Armor') && (loot.rarity === 'epic' || loot.rarity === 'legendary')) {
+              character.collections = character.collections || { houses: [], mounts: [], weapons: [], armor: [] };
+              const mergeOrAddCollectionItem = require('../mergeOrAddCollectionItem');
+              if (loot.type === 'Weapon') {
+                mergeOrAddCollectionItem(character.collections.weapons, loot);
+              } else if (loot.type === 'Armor') {
+                mergeOrAddCollectionItem(character.collections.armor, loot);
+              }
+            }
+          } else {
+            character.inventory.push({ ...loot, count: 1 });
+          }
         }
       }
       reason += `\n${lootMsg}`;
@@ -147,7 +174,6 @@ module.exports = {
     // Handle level up
     const { leveledUp, levelUpMsg: levelUpMsgUtil } = checkLevelUp(character);
     if (leveledUp) levelUpMsg += levelUpMsgUtil;
-
     // Decrement usesLeft for temporary effects and remove expired ones
     if (character.activeEffects && Array.isArray(character.activeEffects)) {
       character.activeEffects = character.activeEffects.map(e => ({...e, usesLeft: e.usesLeft - 1})).filter(e => e.usesLeft > 0);
