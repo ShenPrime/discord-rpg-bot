@@ -79,11 +79,11 @@ module.exports = {
         const roll = Math.random();
         if (roll < 0.02) {
           lootType = 'familiar';
-        } else if (roll < 0.118) {
+        } else if (roll < 0.098) {
           lootType = 'weapon';
-        } else if (roll < 0.412) {
+        } else if (roll < 0.294) {
           lootType = 'gem';
-        } else if (roll < 0.608) {
+        } else if (roll < 0.196) {
           lootType = 'armor';
         } else {
           lootType = 'currency';
