@@ -5,6 +5,7 @@ const ITEMS_PER_PAGE = 10;
 const CATEGORIES = [
   { label: 'Houses', value: 'houses' },
   { label: 'Mounts', value: 'mounts' },
+  { label: 'Familiars', value: 'familiars' },
   { label: 'Weapons', value: 'weapons' },
   { label: 'Armor', value: 'armor' },
   { label: 'Everything', value: 'everything' }
@@ -61,10 +62,13 @@ module.exports = {
     const weapons = filterEpicLegendary(character.collections.weapons);
     const armor = filterEpicLegendary(character.collections.armor);
     let items = [];
+    const familiars = character.collections.familiars || [];
     if (category === 'houses') {
       items = houses.map(h => formatItem(h, '🏠'));
     } else if (category === 'mounts') {
       items = mounts.map(m => formatItem(m, '🐎'));
+    } else if (category === 'familiars') {
+      items = familiars.map(f => formatItem(f, '🦊'));
     } else if (category === 'weapons') {
       items = weapons.map(w => formatItem(w, '🗡️'));
     } else if (category === 'armor') {
@@ -73,6 +77,7 @@ module.exports = {
       items = [
         ...houses.map(h => formatItem(h, '🏠')),
         ...mounts.map(m => formatItem(m, '🐎')),
+        ...familiars.map(f => formatItem(f, '🦊')),
         ...weapons.map(w => formatItem(w, '🗡️')),
         ...armor.map(a => formatItem(a, '🛡️'))
       ];

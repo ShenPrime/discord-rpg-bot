@@ -1,11 +1,13 @@
 // Utility functions for XP, level, and stat calculations (no file I/O)
 
 function getXpForNextLevel(level) {
-  // Non-linear XP curve: grows faster with level
-  return 100 + 50 * (level - 1) + 10 * Math.pow(level - 1, 2);
+  // Level 2: 1000 XP, each level adds 4000 XP more
+  if (level < 2) return 1000;
+  return 1000 + 4000 * (level - 1);
 }
 
 function getClassForLevel(level) {
+  if (level >= 100) return 'The One Above All';
   if (level >= 95) return 'Cosmic Supreme';
   if (level >= 90) return 'Supreme Celestial';
   if (level >= 85) return 'Supreme';
@@ -30,19 +32,12 @@ function checkLevelUp(character) {
     character.xp -= getXpForNextLevel(character.level || 1);
     character.level = (character.level || 1) + 1;
     if (!character.stats) {
-      character.stats = { strength: 2, defense: 2, luck: 2 };
+      character.stats = { strength: 1, defense: 0, luck: 0 };
     }
-    const strUp = randStat();
-    const defUp = randStat();
-
-    const luckUp = randStat();
-    character.stats.strength += strUp;
-    character.stats.defense += defUp;
-
-    character.stats.luck += luckUp;
+    character.stats.strength += 1;
     character.class = getClassForLevel(character.level);
     leveledUp = true;
-    levelUpMsg += `\n🎉 You leveled up! You are now level ${character.level}!\nStats gained: STR +${strUp}, DEF +${defUp}, LUCK +${luckUp}`;
+    levelUpMsg += `\n🎉 You leveled up! You are now level ${character.level}!\nStats gained: STR +1`;
   }
   return { leveledUp, levelUpMsg };
 }

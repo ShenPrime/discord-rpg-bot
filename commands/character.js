@@ -171,6 +171,14 @@ module.exports = {
           mountStr = `🐎 **${mount.name}**\n${mount.description || ''}`;
         }
       }
+      // Familiar
+      let familiarStr = '';
+      if (character.collections && character.activeFamiliar) {
+        const familiar = (character.collections.familiars || []).find(f => f.name === character.activeFamiliar);
+        if (familiar) {
+          familiarStr = `🦊 **${familiar.name}**${familiar.rarity ? ` (${familiar.rarity})` : ''}${familiar.count && familiar.count > 1 ? ` x${familiar.count}` : ''}`;
+        }
+      }
       // Embed
       await saveCharacter(userId, character);
       await interaction.reply({
@@ -185,7 +193,8 @@ module.exports = {
             (eqList.length ? `\n\n**Equipment:**\n${eqList.join(' \n')}` : '') +
             (tempEffects.length ? `\n\n**Temporary Effects:**\n${tempEffects.join(' \n')}` : '') +
             (houseStr ? `\n\n${houseStr}` : '') +
-            (mountStr ? `\n\n${mountStr}` : ''),
+            (mountStr ? `\n\n${mountStr}` : '') +
+            (familiarStr ? `\n\n${familiarStr}` : ''),
           color: 0x3498db,
           footer: { text: 'Your RPG Character Sheet' }
         }],
@@ -207,10 +216,9 @@ module.exports = {
         level: 1,
         xp: 0,
         stats: {
-          strength: 2,
-          defense: 2,
-
-          luck: 2
+          strength: 1,
+          defense: 0,
+          luck: 0
         }
       };
       await saveCharacter(userId, character);
