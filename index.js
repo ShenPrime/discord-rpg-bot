@@ -130,7 +130,7 @@ client.on(Events.InteractionCreate, async interaction => {
         await interaction.reply({ content: 'There was an error processing your collections pagination!', ephemeral: true });
       }
     }
-  } else if (interaction.isStringSelectMenu() && (interaction.customId === 'setactive_house' || interaction.customId === 'setactive_mount')) {
+  } else if (interaction.isStringSelectMenu() && (interaction.customId === 'setactive_house' || interaction.customId === 'setactive_mount' || interaction.customId === 'setactive_familiar')) {
     try {
       await setactive.handleSelect(interaction);
     } catch (error) {
