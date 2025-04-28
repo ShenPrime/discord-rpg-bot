@@ -12,7 +12,8 @@ module.exports = {
         .setRequired(true)
         .addChoices(
           { name: 'House', value: 'house' },
-          { name: 'Mount', value: 'mount' }
+          { name: 'Mount', value: 'mount' },
+          { name: 'Familiar', value: 'familiar' }
         )
     ),
   async execute(interaction) {
@@ -20,8 +21,12 @@ module.exports = {
     const type = interaction.options.getString('type');
     const character = await getCharacter(userId);
     if (!character || !character.collections || !Array.isArray(character.collections[type + 's']) || character.collections[type + 's'].length === 0) {
+      let noneMsg = `You don't own any ${type}s yet!`;
+      if (type === 'familiar') noneMsg = `You don't own any familiars yet!`;
+      else if (type === 'house') noneMsg = `You don't own any houses yet!`;
+      else if (type === 'mount') noneMsg = `You don't own any mounts yet!`;
       await interaction.reply({
-        content: `You don't own any ${type === 'house' ? 'houses' : 'mounts'} yet!`,
+        content: noneMsg,
         ephemeral: true
       });
       return;
@@ -33,7 +38,7 @@ module.exports = {
       .setPlaceholder(`Select your active ${type}`)
       .addOptions(
         items.map(item => ({
-          label: item.name,
+          label: item.count && item.count > 1 ? `${item.name} (x${item.count})` : item.name,
           value: item.name,
           description: item.description ? item.description.substring(0, 80) : undefined
         }))
@@ -67,6 +72,7 @@ module.exports = {
     }
     if (type === 'house') character.activeHouse = value;
     else if (type === 'mount') character.activeMount = value;
+    else if (type === 'familiar') character.activeFamiliar = value;
     await saveCharacter(userId, character);
     await interaction.update({
       content: `Your active ${type} is now **${value}**!`,
