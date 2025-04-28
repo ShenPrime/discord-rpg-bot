@@ -81,10 +81,10 @@ module.exports = {
           lootType = 'familiar';
         } else if (roll < 0.098) {
           lootType = 'weapon';
-        } else if (roll < 0.294) {
-          lootType = 'gem';
         } else if (roll < 0.196) {
           lootType = 'armor';
+        } else if (roll < 0.294) {
+          lootType = 'gem';
         } else {
           lootType = 'currency';
         }
