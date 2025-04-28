@@ -90,11 +90,23 @@ const typeIcons = {
   Gold: '💰',
   Armor: '🛡️',
   Default: '🎒'
-};function getItemType(item) {
-  if (/sword|axe|dagger|bow/i.test(item)) return 'Weapon';
-  if (/potion/i.test(item)) return 'Potion';
-  if (/gold/i.test(item)) return 'Gold';
-  if (/armor|shield|chainmail/i.test(item)) return 'Armor';
+};
+function getItemType(item) {
+  // Use item.type if present
+  if (typeof item === 'object' && item !== null && item.type) {
+    const type = item.type.toLowerCase();
+    if (type === 'weapon') return 'Weapon';
+    if (type === 'armor') return 'Armor';
+    if (type === 'potion') return 'Potion';
+    if (type === 'currency' || type === 'gold') return 'Gold';
+    return 'Default';
+  }
+  // Fallback: try to use name if type is missing
+  const name = typeof item === 'object' && item !== null ? (item.name || '') : (item || '');
+  if (/sword|axe|dagger|bow|mace|staff|wand/i.test(name)) return 'Weapon';
+  if (/potion/i.test(name)) return 'Potion';
+  if (/^gold$/i.test(name.trim())) return 'Gold';
+  if (/armor|shield|chainmail|helmet|chestplate|pants|ring|necklace|greaves|leggings|plate|mail|bracers|gauntlets|boots|crown|band|amulet/i.test(name)) return 'Armor';
   return 'Default';
 }
 // Count equipped items by name (excluding gold)
@@ -145,7 +157,7 @@ inventoryItems = inventoryItems.concat(uniqueItems.filter(itemName => itemName !
     if (entry.data.boost) value += `Boost: +${entry.data.boost} ${entry.data.stat || ''}\n`;
   }
   if (entry.data && entry.data.count > 1) value += `Count: ${entry.data.count}`;
-  const sellPrice = (typeof entry.data === 'object' && entry.data.price) ? Math.floor(entry.data.price * 0.4) : 4;
+  const sellPrice = (typeof entry.data === 'object' && entry.data.price) ? Math.floor(entry.data.price * 0.2) : 4;
   return {
     name: `${icon} ${itemName}`,
     value: `${value.trim() || '—'}\nSell Price: ${sellPrice} Gold`,
@@ -156,13 +168,53 @@ inventoryItems = inventoryItems.concat(uniqueItems.filter(itemName => itemName !
 // Filter items by category
 function filterByCategory(items, cat) {
   if (cat === 'everything') return items;
-  if (cat === 'weapons') return items.filter(i => /⚔️/.test(i.name));
-  if (cat === 'armor') return items.filter(i => /🛡️/.test(i.name));
-  if (cat === 'potions') return items.filter(i => /🧪/.test(i.name));
+  if (cat === 'weapons') return items.filter(i => getItemType(i.name || i) === 'Weapon');
+  if (cat === 'armor') return items.filter(i => getItemType(i.name || i) === 'Armor');
+  if (cat === 'potions') return items.filter(i => getItemType(i.name || i) === 'Potion');
   return items;
 }
 if (!category) category = 'everything';
-const filtered = filterByCategory(inventoryItems, category);
+// Filter by category on the raw itemCounts, then map to display objects
+const filteredKeys = Object.keys(itemCounts).filter(itemName => {
+  if (category === 'everything') return true;
+  const type = getItemType(itemName);
+  if (category === 'weapons') return type === 'Weapon';
+  if (category === 'armor') return type === 'Armor';
+  if (category === 'potions') return type === 'Potion';
+  return true;
+});
+const filtered = [];
+if (goldTotal > 0 && (category === 'everything' || category === 'gold')) {
+  filtered.push({
+    name: `${typeIcons.Gold} Gold`,
+    value: `${goldTotal} Gold`,
+    inline: false
+  });
+}
+filtered.push(...filteredKeys.filter(itemName => itemName !== 'Gold').map((itemName) => {
+  const entry = itemCounts[itemName];
+  const type = getItemType(itemName);
+  const icon = typeIcons[type] || typeIcons.Default;
+  const count = entry.count;
+  let value = '';
+  if (typeof entry.data === 'object' && entry.data !== null) {
+    if (entry.data.rarity) value += `Rarity: ${entry.data.rarity}\n`;
+    if (entry.data.price) value += `Price: ${entry.data.price} Gold\n`;
+    if (entry.data.stats) {
+      const stats = Object.entries(entry.data.stats).map(([k, v]) => `${k.slice(0,3).toUpperCase()}: +${v}`).join(', ');
+      if (stats) value += `Stats: ${stats}\n`;
+    }
+    if (entry.data.uses) value += `Uses: ${entry.data.uses}\n`;
+    if (entry.data.boost) value += `Boost: +${entry.data.boost} ${entry.data.stat || ''}\n`;
+  }
+  if (entry.data && entry.data.count > 1) value += `Count: ${entry.data.count}`;
+  const sellPrice = (typeof entry.data === 'object' && entry.data.price) ? Math.floor(entry.data.price * 0.2) : 4;
+  return {
+    name: `${icon} ${itemName}`,
+    value: `${value.trim() || '—'}\nSell Price: ${sellPrice} Gold`,
+    inline: false
+  };
+}));
 const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
 if (page < 0) page = 0;
 if (page >= totalPages) page = totalPages - 1;
