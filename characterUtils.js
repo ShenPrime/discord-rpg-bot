@@ -42,8 +42,49 @@ function checkLevelUp(character) {
   return { leveledUp, levelUpMsg };
 }
 
+// Calculates total stats (base, equipment, temporary effects)
+function getTotalStats(character, lootTable) {
+  const statKeys = ['strength', 'defense', 'luck'];
+  // Base stats
+  let baseStats = {
+    strength: character.stats?.strength ?? 0,
+    defense: character.stats?.defense ?? 0,
+    luck: character.stats?.luck ?? 0
+  };
+  // Equipment bonuses
+  let eqStats = { strength: 0, defense: 0, luck: 0 };
+  if (character.equipment) {
+    for (const [slot, itemName] of Object.entries(character.equipment)) {
+      const lootItem = lootTable.find(i => i.name === itemName && i.stats);
+      if (lootItem && lootItem.stats) {
+        for (const [stat, val] of Object.entries(lootItem.stats)) {
+          if (statKeys.includes(stat)) {
+            eqStats[stat] = (eqStats[stat] || 0) + val;
+          }
+        }
+      }
+    }
+  }
+  // Temporary effects
+  let tempStats = { strength: 0, defense: 0, luck: 0 };
+  if (character.activeEffects && Array.isArray(character.activeEffects)) {
+    for (const effect of character.activeEffects) {
+      if (statKeys.includes(effect.stat)) {
+        tempStats[effect.stat] += effect.boost;
+      }
+    }
+  }
+  // Total stats
+  let totalStats = { ...baseStats };
+  for (const stat of statKeys) {
+    totalStats[stat] = (totalStats[stat] || 0) + (eqStats[stat] || 0) + (tempStats[stat] || 0);
+  }
+  return { totalStats, baseStats, eqStats, tempStats };
+}
+
 module.exports = {
   getXpForNextLevel,
   checkLevelUp,
-  getClassForLevel
+  getClassForLevel,
+  getTotalStats
 };

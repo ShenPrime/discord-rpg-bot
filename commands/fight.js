@@ -1,8 +1,8 @@
 // commands/fight.js
 const { SlashCommandBuilder } = require('discord.js');
 const { lootTable } = require('./loot');
-const mergeOrAddInventoryItem = require('../mergeOrAddInventoryItem');
 const fightSessionManager = require('../fightSessionManager');
+const { getTotalStats } = require('../characterUtils');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -32,37 +32,7 @@ module.exports = {
     // Player strength = level (plus any active effects)
     const level = character.level || 1;
     // Calculate player modifier as the sum of TOTAL STR, DEF, LUCK (base + equipment + temp effects)
-    const statKeys = ['strength', 'defense', 'luck'];
-    // Base stats
-    let baseStats = { strength: character.stats?.strength ?? 0, defense: character.stats?.defense ?? 0, luck: character.stats?.luck ?? 0 };
-    // Equipment bonuses
-    let eqStats = { strength: 0, defense: 0, luck: 0 };
-    if (character.equipment) {
-      for (const [slot, itemName] of Object.entries(character.equipment)) {
-        const lootItem = lootTable.find(i => i.name === itemName && i.stats);
-        if (lootItem && lootItem.stats) {
-          for (const [stat, val] of Object.entries(lootItem.stats)) {
-            if (statKeys.includes(stat)) {
-              eqStats[stat] = (eqStats[stat] || 0) + val;
-            }
-          }
-        }
-      }
-    }
-    // Temporary effects
-    let tempStats = { strength: 0, defense: 0, luck: 0 };
-    if (character.activeEffects && Array.isArray(character.activeEffects)) {
-      for (const effect of character.activeEffects) {
-        if (statKeys.includes(effect.stat)) {
-          tempStats[effect.stat] += effect.boost;
-        }
-      }
-    }
-    // Total stats
-    let totalStats = { ...baseStats };
-    for (const stat of statKeys) {
-      totalStats[stat] = (totalStats[stat] || 0) + (eqStats[stat] || 0) + (tempStats[stat] || 0);
-    }
+    const { totalStats } = getTotalStats(character, lootTable);
     const playerStrength = totalStats.strength;
     const playerDefense = totalStats.defense;
     const playerLuck = totalStats.luck;

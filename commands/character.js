@@ -1,12 +1,8 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-
-const { getXpForNextLevel, checkLevelUp, getClassForLevel } = require('../characterUtils');
+const { SlashCommandBuilder } = require('discord.js');
+const { getXpForNextLevel, getClassForLevel } = require('../characterUtils');
 const { getCharacter, saveCharacter } = require('../characterModel');
-
-
-
-
-
+const fightSessionManager = require('../fightSessionManager');
+const { getTotalStats } = require('../characterUtils');
 
 
 module.exports = {
@@ -20,20 +16,14 @@ module.exports = {
     ),
   async execute(interaction) {
     // Flush fight session if it exists (unified logic)
-    const fightSessionManager = require('../fightSessionManager');
     const userId = interaction.user.id;
     await fightSessionManager.flushIfExists(userId);
     let character = await getCharacter(userId);
 
     if (character) {
-      // Level and XP display
-      const xp = character.xp || 0;
-      const level = character.level || 1;
-      const xpForNext = getXpForNextLevel(level);
-
-
       // Always update class in case level/class is out of sync
       character.class = getClassForLevel(character.level);
+      const { totalStats } = getTotalStats(character, require('./loot').lootTable);
       // Class and stat icons
       const classIcons = {
         'Adventurer': '🧑‍🌾',
@@ -65,35 +55,8 @@ module.exports = {
         const icon = statIcons[stat] || '';
         return `${icon} **${stat.charAt(0).toUpperCase() + stat.slice(1)}:** ${val}`;
       }).join('\n');
-      // Calculate total stats (base + equipment + temp)
-      const { lootTable } = require('./loot');
-      const baseStats = { strength: character.stats?.strength ?? 0, defense: character.stats?.defense ?? 0, luck: character.stats?.luck ?? 0 };
-      let eqStats = { strength: 0, defense: 0, luck: 0 };
-      if (character.equipment) {
-        for (const [slot, itemName] of Object.entries(character.equipment)) {
-          const lootItem = lootTable.find(i => i.name === itemName && i.stats);
-          if (lootItem && lootItem.stats) {
-            for (const [stat, val] of Object.entries(lootItem.stats)) {
-              if (statKeys.includes(stat)) {
-                eqStats[stat] = (eqStats[stat] || 0) + val;
-              }
-            }
-          }
-        }
-      }
-      let tempStats = { strength: 0, defense: 0, luck: 0 };
-      if (character.activeEffects && Array.isArray(character.activeEffects)) {
-        for (const effect of character.activeEffects) {
-          if (statKeys.includes(effect.stat)) {
-            tempStats[effect.stat] += effect.boost;
-          }
-        }
-      }
-      let totalStats = { ...baseStats };
-      for (const stat of statKeys) {
-        totalStats[stat] = (totalStats[stat] || 0) + (eqStats[stat] || 0) + (tempStats[stat] || 0);
-      }
-      let totalStatLines = statKeys.map(stat => {
+      // Use getTotalStats result for stat display
+      let totalStatLines = ['strength', 'defense', 'luck'].map(stat => {
         const icon = statIcons[stat] || '';
         return `${icon} **${stat.charAt(0).toUpperCase() + stat.slice(1)}:** ${totalStats[stat]}`;
       }).join('   ');
