@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getAllCharacters } = require('../characterModel');
+const fightSessionManager = require('../fightSessionManager');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -53,6 +54,9 @@ module.exports = {
       return `${emoji} ${classIcon} ${name} ${mention} — ${className} — **Level ${level}**`;
     });
     if (leaderboardRows.length === 0) leaderboardRows = ['No players found.'];
+    // Flush any pending fight session for this user before leaderboard action
+    const userId = interaction.user.id;
+    await fightSessionManager.flushIfExists(userId);
     // Use embed for modern look
     await interaction.reply({
       embeds: [{

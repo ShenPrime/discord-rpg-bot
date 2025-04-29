@@ -10,6 +10,9 @@ module.exports = {
     .setDescription('Delete your RPG character and all progress.'),
   async execute(interaction) {
     const userId = interaction.user.id;
+  // Flush any pending fight session for this user before deleting character
+  const fightSessionManager = require('../fightSessionManager');
+  await fightSessionManager.flushIfExists(userId);
     const character = await getCharacter(userId);
     if (!character) {
       await interaction.reply({ content: 'You do not have a character to delete.', flags: MessageFlags.Ephemeral });

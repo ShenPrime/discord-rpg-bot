@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getCharacter } = require('../characterModel');
+const fightSessionManager = require('../fightSessionManager');
 
 const ITEMS_PER_PAGE = 10;
 const CATEGORIES = [
@@ -31,8 +32,8 @@ module.exports = {
     .setName('collections')
     .setDescription('Show off your RPG collections (houses, mounts, epic/legendary weapons & armor)!'),
   async execute(interaction) {
-    // Flush fight session if it exists
     const userId = interaction.user.id;
+    // Flush any pending fight session for this user before viewing collections
     await fightSessionManager.flushIfExists(userId);
     let category = 'houses';
     let page = 0;

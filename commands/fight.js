@@ -102,6 +102,21 @@ module.exports = {
         if (lootType === 'familiar') {
           const { familiarTable } = require('./loot');
           lootItems = familiarTable;
+        } else if (lootType === 'weapon' || lootType === 'armor') {
+          // Level-based rarity filtering for weapon/armor using config array
+          const rarityUnlocks = [
+            { level: 20, rarities: ['common'] },
+            { level: 30, rarities: ['common', 'uncommon'] },
+            { level: 40, rarities: ['common', 'uncommon', 'refined'] },
+            { level: 50, rarities: ['common', 'uncommon', 'refined', 'rare'] },
+            { level: 60, rarities: ['common', 'uncommon', 'refined', 'rare', 'superior'] },
+            { level: 70, rarities: ['common', 'uncommon', 'refined', 'rare', 'superior', 'epic'] },
+            { level: 80, rarities: ['common', 'uncommon', 'refined', 'rare', 'superior', 'epic', 'legendary'] },
+            { level: 90, rarities: ['common', 'uncommon', 'refined', 'rare', 'superior', 'epic', 'legendary', 'mythic'] },
+            { level: Infinity, rarities: ['common', 'uncommon', 'refined', 'rare', 'superior', 'epic', 'legendary', 'mythic', 'divine'] }
+          ];
+          const allowedRarities = rarityUnlocks.find(t => level < t.level).rarities;
+          lootItems = getLootByType(lootTable, lootType).filter(item => allowedRarities.includes(item.rarity));
         } else {
           lootItems = getLootByType(lootTable, lootType);
         }

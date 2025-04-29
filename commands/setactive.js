@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, StringSelectMenuBuilder, ActionRowBuilder, MessageFlags } = require('discord.js');
 const { getCharacter, saveCharacter } = require('../characterModel');
+const fightSessionManager = require('../fightSessionManager');
 
 
 module.exports = {
@@ -18,7 +19,7 @@ module.exports = {
     ),
   async execute(interaction) {
     // Flush fight session if it exists (unified logic)
-    const fightSessionManager = require('../fightSessionManager');
+    
     const userId = interaction.user.id;
     await fightSessionManager.flushIfExists(userId);
     const type = interaction.options.getString('type');

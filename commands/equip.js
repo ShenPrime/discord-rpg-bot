@@ -1,7 +1,6 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-
 const { getCharacter, saveCharacter } = require('../characterModel');
-
+const fightSessionManager = require('../fightSessionManager');
 
 // No ITEM_EFFECTS needed; use lootTable for slot and stats
 const { lootTable } = require('./loot');
@@ -79,7 +78,8 @@ module.exports = {
 
   async execute(interaction) {
     const userId = interaction.user.id;
-    
+    // Flush any pending fight session for this user before equip command
+    await fightSessionManager.flushIfExists(userId);
     let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
       await interaction.reply({ content: 'You have no inventory to equip from!', flags: MessageFlags.Ephemeral });
