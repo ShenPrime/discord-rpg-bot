@@ -27,7 +27,8 @@ module.exports = {
     ),
   async autocomplete(interaction) {
     const userId = interaction.user.id;
-    
+    // Flush any pending fight session for this user before autocomplete
+    await fightSessionManager.flushIfExists(userId);
     let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
       await interaction.respond([]);
@@ -78,8 +79,6 @@ module.exports = {
 
   async execute(interaction) {
     const userId = interaction.user.id;
-    // Flush any pending fight session for this user before equip command
-    await fightSessionManager.flushIfExists(userId);
     let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
       await interaction.reply({ content: 'You have no inventory to equip from!', flags: MessageFlags.Ephemeral });
