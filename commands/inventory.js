@@ -145,30 +145,55 @@ if (goldTotal > 0) {
     inline: false
   });
 }
-inventoryItems = inventoryItems.concat(uniqueItems.filter(itemName => itemName !== 'Gold').map((itemName) => {
+// Prepare inventory items (excluding gold) and sort by sell price
+const loot = require('./loot');
+const inventoryDisplayItems = uniqueItems.filter(itemName => itemName !== 'Gold').map((itemName) => {
   const entry = itemCounts[itemName];
-  const type = getItemType(itemName);
+  const lootItem = loot.lootTable.find(i => i.name === itemName);
+  // Always use lootTable for canonical price/type
+  const type = lootItem ? lootItem.type : undefined;
+  const price = lootItem ? lootItem.price : 0;
   const icon = typeIcons[type] || typeIcons.Default;
   const count = entry.count;
   let value = '';
-  if (typeof entry.data === 'object' && entry.data !== null) {
-    if (entry.data.rarity) value += `Rarity: ${entry.data.rarity}\n`;
-    if (entry.data.price) value += `Price: ${entry.data.price} Gold\n`;
-    if (entry.data.stats) {
-      const stats = Object.entries(entry.data.stats).map(([k, v]) => `${k.slice(0,3).toUpperCase()}: +${v}`).join(', ');
+  if (lootItem) {
+    if (lootItem.rarity) value += `Rarity: ${lootItem.rarity}\n`;
+    if (lootItem.stats) {
+      const stats = Object.entries(lootItem.stats).map(([k, v]) => `${k.slice(0,3).toUpperCase()}: +${v}`).join(', ');
       if (stats) value += `Stats: ${stats}\n`;
     }
-    if (entry.data.uses) value += `Uses: ${entry.data.uses}\n`;
-    if (entry.data.boost) value += `Boost: +${entry.data.boost} ${entry.data.stat || ''}\n`;
+    if (lootItem.uses) value += `Uses: ${lootItem.uses}\n`;
+    if (lootItem.boost) value += `Boost: +${lootItem.boost} ${lootItem.stat || ''}\n`;
   }
   if (entry.data && entry.data.count > 1) value += `Count: ${entry.data.count}`;
-  const sellPrice = (typeof entry.data === 'object' && entry.data.price) ? Math.floor(entry.data.price * 0.2) : 4;
+  let sellPrice = 0;
+  if (lootItem && lootItem.price) {
+    if (lootItem.name === 'Gem') {
+      sellPrice = lootItem.price;
+      value += `\nDEBUG: Gem detected by name, using full price`;
+    } else {
+      sellPrice = Math.floor(lootItem.price * 0.2);
+    }
+  } else if (entry.data && entry.data.price) {
+    sellPrice = Math.floor(entry.data.price * 0.2);
+  }
+  if (value && !value.endsWith('\n')) value += '\n';
+  value += `Sell Price: ${sellPrice} Gold`;
+
   return {
     name: `${icon} ${itemName}`,
     value: `${value.trim() || '—'}\nSell Price: ${sellPrice} Gold`,
-    inline: false
+    inline: false,
+    _sellPrice: sellPrice
   };
-}));
+});
+// Sort by sell price descending, then by name ascending
+inventoryDisplayItems.sort((a, b) => {
+  if (b._sellPrice !== a._sellPrice) return b._sellPrice - a._sellPrice;
+  return a.name.localeCompare(b.name);
+});
+// Remove _sellPrice property for display
+inventoryItems = inventoryItems.concat(inventoryDisplayItems.map(({_sellPrice, ...rest}) => rest));
 
 // Filter items by category
 function filterByCategory(items, cat) {
@@ -198,37 +223,66 @@ if (goldTotal > 0 && (category === 'everything' || category === 'gold')) {
 }
 filtered.push(...filteredKeys.filter(itemName => itemName !== 'Gold').map((itemName) => {
   const entry = itemCounts[itemName];
-  const type = getItemType(itemName);
+  const loot = require('./loot');
+  const lootItem = loot.lootTable.find(i => i.name === itemName);
+  const type = lootItem ? lootItem.type : undefined;
+  const price = lootItem ? lootItem.price : 0;
   const icon = typeIcons[type] || typeIcons.Default;
   const count = entry.count;
   let value = '';
-  if (typeof entry.data === 'object' && entry.data !== null) {
-    if (entry.data.rarity) value += `Rarity: ${entry.data.rarity}\n`;
-    if (entry.data.price) value += `Price: ${entry.data.price} Gold\n`;
-    if (entry.data.stats) {
-      const stats = Object.entries(entry.data.stats).map(([k, v]) => `${k.slice(0,3).toUpperCase()}: +${v}`).join(', ');
+  if (lootItem) {
+    if (lootItem.rarity) value += `Rarity: ${lootItem.rarity}\n`;
+    if (lootItem.price) value += `Price: ${lootItem.price} Gold\n`;
+    if (lootItem.stats) {
+      const stats = Object.entries(lootItem.stats).map(([k, v]) => `${k.slice(0,3).toUpperCase()}: +${v}`).join(', ');
       if (stats) value += `Stats: ${stats}\n`;
     }
-    if (entry.data.uses) value += `Uses: ${entry.data.uses}\n`;
-    if (entry.data.boost) value += `Boost: +${entry.data.boost} ${entry.data.stat || ''}\n`;
+    if (lootItem.uses) value += `Uses: ${lootItem.uses}\n`;
+    if (lootItem.boost) value += `Boost: +${lootItem.boost} ${lootItem.stat || ''}\n`;
   }
   if (entry.data && entry.data.count > 1) value += `Count: ${entry.data.count}`;
-  const sellPrice = (typeof entry.data === 'object' && entry.data.price) ? Math.floor(entry.data.price * 0.2) : 4;
+  let sellPrice = 0;
+  if (lootItem && lootItem.type === 'Gem') {
+    sellPrice = price;
+  } else if (price) {
+    sellPrice = Math.floor(price * 0.2);
+  }
+  if (value && !value.endsWith('\n')) value += '\n';
+  value += `Sell Price: ${sellPrice} Gold`;
   return {
     name: `${icon} ${itemName}`,
-    value: `${value.trim() || '—'}\nSell Price: ${sellPrice} Gold`,
+    value: value.trim() || '—',
     inline: false
   };
 }));
+// Sort filtered inventory by sell price descending, then by name ascending
+filtered.sort((a, b) => {
+  // Extract sell price from value string
+  const aMatch = a.value.match(/Sell Price: (\d+) Gold/);
+  const bMatch = b.value.match(/Sell Price: (\d+) Gold/);
+  const aPrice = aMatch ? parseInt(aMatch[1], 10) : 0;
+  const bPrice = bMatch ? parseInt(bMatch[1], 10) : 0;
+  if (bPrice !== aPrice) return bPrice - aPrice;
+  return a.name.localeCompare(b.name);
+});
 const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
 if (page < 0) page = 0;
 if (page >= totalPages) page = totalPages - 1;
-const pagedItems = filtered.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
+// Remove Gold from filtered items if present
+const filteredNoGold = filtered.filter(i => i.name !== `${typeIcons.Gold} Gold`);
+const pagedItems = filteredNoGold.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
+// Always prepend Gold as the first item
+const goldItem = {
+  name: `${typeIcons.Gold} Gold`,
+  value: `${goldTotal} Gold`,
+  inline: false
+};
+const pagedItemsWithGold = [goldItem, ...pagedItems];
 const embed = new EmbedBuilder()
   .setTitle(`${interaction.user.username}'s Inventory — ${INV_CATEGORIES.find(c => c.value === category).label}`)
   .setColor(0xffd700)
-  .setFooter({ text: `Page ${page + 1} of ${totalPages}` })
-  .setDescription(pagedItems.length ? pagedItems.map(i => `${i.name}\n${i.value}`).join('\n\n') : 'No items in this category.');
+  .setFooter({ text: `Page ${page + 1} of ${totalPages} | Gold: ${goldTotal}` })
+  .setDescription(pagedItemsWithGold.length ? pagedItemsWithGold.map(i => `${i.name}\n${i.value}`).join('\n\n') : 'No items in this category.');
 // Category select
 const selectRow = new ActionRowBuilder().addComponents(
   new StringSelectMenuBuilder()
@@ -288,7 +342,7 @@ if (interaction.isButton && interaction.isButton() && interaction.customId === '
       const equippedCount = equippedCounts[item.name] || 0;
       const count = item.count || 1;
       const unequippedCount = count - equippedCount;
-      const sellPrice = item.price ? Math.floor(item.price * 0.4) : 4;
+      const sellPrice = (item.type === 'Gem') ? (item.price || 10) : (item.price ? Math.floor(item.price * 0.4) : 4);
       if (!isPotion && !isEpicOrLegendary && unequippedCount > 0) {
         sellableGold += sellPrice * unequippedCount;
         saleSummary.push({ name: item.name, count: unequippedCount, gold: sellPrice * unequippedCount });

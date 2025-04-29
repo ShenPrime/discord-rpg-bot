@@ -1,7 +1,7 @@
 const multiSellSessions = new Map(); // userId -> { items, timestamp }
 const MULTI_SELL_TTL = 5 * 60 * 1000; // 5 minutes
 
-const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 
 const { getCharacter, saveCharacter } = require('../characterModel');
 
@@ -31,17 +31,50 @@ module.exports = {
         if (eq && typeof eq === 'string') equippedNames.add(eq);
       }
     }
-    const items = character.inventory.map((item, idx) => ({ ...item, __invIdx: idx }))
-      .filter(item => {
-        if (!item || typeof item !== 'object') return false;
-        const count = item.count || 1;
-        if (count < 1) return false;
-        // Exclude gold/currency by type or by exact name
-if ((item.type && item.type.toLowerCase() === 'currency') || (item.type && item.type.toLowerCase() === 'gold')) return false;
-if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') return false;
-        if (equippedNames.has(item.name)) return false;
-        return true;
-      });
+    const loot = require('./loot');
+// Count equipped items by name
+const equippedCounts = {};
+if (character.equipment) {
+  for (const eq of Object.values(character.equipment)) {
+    if (eq && typeof eq === 'string') {
+      equippedCounts[eq] = (equippedCounts[eq] || 0) + 1;
+    }
+  }
+}
+// Group inventory items by name and sum unequipped count for each
+const groupedItems = {};
+const indexMap = {};
+character.inventory.forEach((item, idx) => {
+  if (!item || typeof item !== 'object') return;
+  const count = item.count || 1;
+  if (count < 1) return;
+  // Exclude pure Gold by name and type
+  if ((item.type && item.type.toLowerCase() === 'currency') || (item.type && item.type.toLowerCase() === 'gold')) return;
+  if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') return;
+  const itemName = item.name;
+  groupedItems[itemName] = groupedItems[itemName] || { ...item, count: 0 };
+  groupedItems[itemName].count += count;
+  indexMap[itemName] = indexMap[itemName] || [];
+  indexMap[itemName].push(idx);
+});
+// Sort items by total gold earned from selling (descending)
+const items = Object.values(groupedItems)
+  .filter(item => item.count > 0)
+  .sort((a, b) => {
+    const lootA = loot.lootTable.find(i => i.name === a.name);
+    const priceA = lootA ? lootA.price : (a.price || 0);
+    const typeA = lootA ? lootA.type : (a.type || '');
+    const sellPriceA = typeA === 'Gem' ? priceA : Math.floor(priceA * 0.2);
+    const totalA = sellPriceA * a.count;
+
+    const lootB = loot.lootTable.find(i => i.name === b.name);
+    const priceB = lootB ? lootB.price : (b.price || 0);
+    const typeB = lootB ? lootB.type : (b.type || '');
+    const sellPriceB = typeB === 'Gem' ? priceB : Math.floor(priceB * 0.2);
+    const totalB = sellPriceB * b.count;
+
+    return totalB - totalA;
+  });
     if (!items.length) {
       await interaction.reply({
         content: `You have no items to sell!`,
@@ -51,11 +84,36 @@ if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') 
       return;
     }
     // Build options for select menu
-    const options = items.map(item => ({
-      label: `${item.name} - ${Math.floor((item.price || 10) * 0.2)} Gold${item.count > 1 ? ` (x${item.count})` : ''}`,
-      value: String(item.__invIdx),
-      description: item.name.length < 90 ? item.name : item.name.slice(0, 90)
-    }));
+    // Ensure select menu option values are unique by using item name + index
+const options = items.map((item, idx) => {
+  // Use lootTable to determine canonical price/type
+  const lootItem = loot.lootTable.find(i => i.name === item.name);
+  const price = lootItem ? lootItem.price : (item.price || 0);
+  const type = lootItem ? lootItem.type : (item.type || '');
+  let sellPrice = 0;
+  if (type === 'Gem') {
+    sellPrice = price;
+  } else if (price) {
+    sellPrice = Math.floor(price * 0.2);
+  }
+  const totalGold = sellPrice * item.count;
+  // Use a unique value for each grouped item
+  const value = `${item.name.replace(/[^a-zA-Z0-9]/g, '_')}__${idx}`;
+  // Store mapping for later: value -> { name, indices }
+  if (!global.sellMenuValueMap) global.sellMenuValueMap = {};
+  global.sellMenuValueMap[value] = { name: item.name, indices: indexMap[item.name] };
+  let label = '';
+  if (item.count > 1) {
+    label = `${item.name} - ${sellPrice} Gold (x${item.count}, Earns ${totalGold} Gold)`;
+  } else {
+    label = `${item.name} - ${sellPrice} Gold`;
+  }
+  return {
+    label,
+    value,
+    description: item.name.length < 90 ? item.name : item.name.slice(0, 90)
+  };
+});
     const { components, currentPage, totalPages, content } = paginateSelectMenu({
       choices: options,
       page,
@@ -103,8 +161,25 @@ if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') 
       const userId = interaction.user.id;
       let character = await getCharacter(userId);
       // Enhanced selection logic
-      const selectedIndices = interaction.values.map(Number);
-      const selectedItems = selectedIndices.map(idx => character.inventory[idx]);
+      // Use the global.sellMenuValueMap to map selection values to inventory indices
+      const selectedValueMap = global.sellMenuValueMap || {};
+      const selectedGroups = interaction.values.map(val => selectedValueMap[val]);
+      // Build a list of all inventory indices to sell, and the item meta
+      let allSelectedIndices = [];
+      let selectedItems = [];
+      for (const group of selectedGroups) {
+        if (!group || !group.indices || !group.name) continue;
+        for (const idx of group.indices) {
+          // Defensive: ensure item exists and is not equipped
+          const item = character.inventory[idx];
+          if (!item || typeof item !== 'object') continue;
+          if ((item.type && item.type.toLowerCase() === 'currency') || (item.type && item.type.toLowerCase() === 'gold')) continue;
+          if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') continue;
+          selectedItems.push(item);
+          allSelectedIndices.push(idx);
+        }
+      }
+      // Partition stackables and singles
       const stackables = selectedItems.filter(item => item && typeof item === 'object' && item.count > 1);
       const singles = selectedItems.filter(item => item && typeof item === 'object' && (!item.count || item.count === 1));
       const invalids = selectedItems.filter(item => !item || typeof item !== 'object' || /gold/i.test(item.name));
@@ -114,8 +189,8 @@ if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') 
         return;
       }
 
-      // Multi-stackable modal: up to 5 stackable items
-      if (stackables.length > 0 && stackables.length <= 5 && singles.length === 0) {
+      // If any stackables are selected, show modal to ask for quantity for each stackable (up to 5 at once)
+      if (stackables.length > 0 && stackables.length <= 5) {
         // Exactly one stackable item selected: show modal for quantity
         // Multi-stackable: build modal for up to 5 items
         const delimiter = '|||';
@@ -149,17 +224,18 @@ if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') 
         // console.log('DEBUG MODAL STRUCTURE:', JSON.stringify(modal.toJSON(), null, 2));
         await interaction.showModal(modal);
         return; 
-      } else if (stackables.length === 0 && singles.length > 0) {
+      } else if ((stackables.length === 0 && singles.length > 0) || (stackables.length === 0 && singles.length === 0)) {
         // All single-count items: sell all at once
         const addGoldToInventory = require('../addGoldToInventory');
         let soldItems = [];
         let totalGold = 0;
         // Sort indices descending so splicing doesn't affect subsequent indices
-        for (const idx of selectedIndices.sort((a, b) => b - a)) {
+        for (const idx of allSelectedIndices.sort((a, b) => b - a)) {
           const item = character.inventory[idx];
-          const sellPrice = Math.floor((item.price || 10) * 0.2);
-          soldItems.push(`**${item.name}** for ${sellPrice} Gold`);
-          totalGold += sellPrice;
+          const price = item.price || 10;
+          const sellPrice = (item.type === 'Gem') ? price : Math.floor(price * 0.2);
+          totalGold += sellPrice * (item.count || 1);
+          soldItems.push(`${item.name}${item.count > 1 ? ` x${item.count}` : ''}`);
           character.inventory.splice(idx, 1);
         }
         if (soldItems.length === 0) {
@@ -327,6 +403,7 @@ You cannot mix stackables and singles or select multiple stackables.`,
         return;
       }
       const price = item.price || 10;
+      const sellPrice = (item.type === 'Gem') ? price : Math.floor(price * 0.2);
       const addGoldToInventory = require('../addGoldToInventory');
       // Remove/sell the quantity
       if (item.count > qty) {
