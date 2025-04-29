@@ -4,6 +4,26 @@ const { houseTable, mountTable, armorTable, weaponTable, potionTable } = require
 const mergeOrAddInventoryItem = require('../mergeOrAddInventoryItem');
 const mergeOrAddCollectionItem = require('../mergeOrAddCollectionItem');
 
+// Helper to sum up gold in a character's inventory
+function getUserGold(character, withIdx = false) {
+  let gold = 0;
+  let goldIdx = -1;
+  if (character && Array.isArray(character.inventory)) {
+    character.inventory.forEach((i, idx) => {
+      if (typeof i === 'object') {
+        if (i.name === 'Gold') {
+          gold += i.count || 0;
+          if (withIdx) goldIdx = idx;
+        } else {
+          const m = i.name && i.name.match(/(\d+) Gold/i);
+          if (m) gold += i.amount || parseInt(m[1], 10) || 0;
+        }
+      }
+    });
+  }
+  return withIdx ? { gold, goldIdx } : gold;
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('shop')
@@ -35,20 +55,7 @@ module.exports = {
     const userId = interaction.user.id;
     
     let character = await getCharacter(userId);
-    // Gold handling: sum both 'Gold' (with count) and 'X Gold' (with amount or name)
-    let gold = 0;
-    if (character && Array.isArray(character.inventory)) {
-      for (const i of character.inventory) {
-        if (typeof i === 'object') {
-          if (i.name === 'Gold') {
-            gold += i.count || 0;
-          } else {
-            const m = i.name && i.name.match(/(\d+) Gold/i);
-            if (m) gold += i.amount || parseInt(m[1], 10) || 0;
-          }
-        }
-      }
-    }
+    let gold = getUserGold(character);
     // Prepare dropdown/select menu
     let choices = [];
     if (category === 'House') {
@@ -141,21 +148,7 @@ module.exports = {
     const userId = interaction.user.id;
     
     let character = await getCharacter(userId);
-    let gold = 0;
-    let goldIdx = -1;
-    if (character && Array.isArray(character.inventory)) {
-      character.inventory.forEach((i, idx) => {
-        if (typeof i === 'object') {
-          if (i.name === 'Gold') {
-            gold += i.count || 0;
-            goldIdx = idx;
-          } else {
-            const m = i.name && i.name.match(/(\d+) Gold/i);
-            if (m) gold += i.amount || parseInt(m[1], 10) || 0;
-          }
-        }
-      });
-    }
+    let { gold, goldIdx } = getUserGold(character, true);
     // Get selected items
     const selected = interaction.values;
     let purchaseResults = [];
