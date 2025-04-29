@@ -1,7 +1,7 @@
 // fightSessionManager.js
 const { getCharacter, saveCharacter } = require('./characterModel');
 const fightSessions = new Map();
-const INACTIVITY_TIMEOUT = 10000; // 10 seconds
+const INACTIVITY_TIMEOUT = 60000; // 60 seconds
 
 function getMemoryUsageStats() {
   const mem = process.memoryUsage();
@@ -17,7 +17,10 @@ function getMemoryUsageStats() {
 function logActiveSessions(context = '') {
   const count = fightSessions.size;
   const mem = getMemoryUsageStats();
-  console.log(`[SessionMonitor] Active sessions: ${count}${context ? ' | ' + context : ''} | Memory: RSS ${(mem.rss/1048576).toFixed(2)}MB, Heap ${(mem.heapUsed/1048576).toFixed(2)}/${(mem.heapTotal/1048576).toFixed(2)}MB`);
+  const nowObj = new Date();
+  const pad = n => n.toString().padStart(2, '0');
+  const now = `${nowObj.getFullYear()}-${pad(nowObj.getMonth()+1)}-${pad(nowObj.getDate())} ${pad(nowObj.getHours())}:${pad(nowObj.getMinutes())}:${pad(nowObj.getSeconds())}`;
+  console.log(`[${now}] [SessionMonitor] Active sessions: ${count}${context ? ' | ' + context : ''} | Memory: RSS ${(mem.rss/1048576).toFixed(2)}MB, Heap ${(mem.heapUsed/1048576).toFixed(2)}/${(mem.heapTotal/1048576).toFixed(2)}MB`);
 }
 
 function getActiveSessionCount() {
