@@ -17,7 +17,10 @@ module.exports = {
         )
     ),
   async execute(interaction) {
+    // Flush fight session if it exists (unified logic)
+    const fightSessionManager = require('../fightSessionManager');
     const userId = interaction.user.id;
+    await fightSessionManager.flushIfExists(userId);
     const type = interaction.options.getString('type');
     const character = await getCharacter(userId);
     if (!character || !character.collections || !Array.isArray(character.collections[type + 's']) || character.collections[type + 's'].length === 0) {
@@ -52,7 +55,10 @@ module.exports = {
   },
   // Handler for select menu
   async handleSelect(interaction) {
+    // Flush fight session if it exists (unified logic)
+    const fightSessionManager = require('../fightSessionManager');
     const userId = interaction.user.id;
+    await fightSessionManager.flushIfExists(userId);
     const [_, type] = interaction.customId.split('_');
     const value = interaction.values[0];
     const character = await getCharacter(userId);

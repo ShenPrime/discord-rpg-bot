@@ -31,6 +31,9 @@ module.exports = {
     .setName('collections')
     .setDescription('Show off your RPG collections (houses, mounts, epic/legendary weapons & armor)!'),
   async execute(interaction) {
+    // Flush fight session if it exists
+    const userId = interaction.user.id;
+    await fightSessionManager.flushIfExists(userId);
     let category = 'houses';
     let page = 0;
     if (interaction.isStringSelectMenu && interaction.isStringSelectMenu() && interaction.customId.startsWith('collections_cat')) {
@@ -47,8 +50,7 @@ module.exports = {
         page = parseInt(match[2], 10) || 0;
       }
     }
-    const userId = interaction.user.id;
-    const character = await getCharacter(userId);
+    const character = await getCharacter(interaction.user.id);
     if (!character || !character.collections) {
       await interaction.reply({
         content: "You don't own any collections yet!",

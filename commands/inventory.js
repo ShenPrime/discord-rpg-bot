@@ -20,6 +20,10 @@ module.exports = {
     .setName('inventory')
     .setDescription('Check your inventory.'),
   async execute(interaction) {
+    // Flush fight session if it exists
+    const fightSessionManager = require('../fightSessionManager');
+    const userId = interaction.user.id;
+    await fightSessionManager.flushIfExists(userId);
     // Always initialize category and page to defaults
     let category = 'everything';
     let page = 0;
@@ -40,8 +44,9 @@ module.exports = {
     }
     const isButton = interaction.isButton && interaction.isButton();
     const respond = (...args) => isButton ? interaction.update(...args) : interaction.reply(...args);
-    const userId = interaction.user.id;
-    let character = await getCharacter(userId);
+    // Flush fight session if it exists (unified logic)
+    await fightSessionManager.flushIfExists(userId);
+    let character = await getCharacter(interaction.user.id);
     if (!character) {
       await respond({ content: 'You do not have a character yet. Use /character to create one!', ephemeral: true });
       return;

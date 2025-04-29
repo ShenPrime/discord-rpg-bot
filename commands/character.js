@@ -19,7 +19,10 @@ module.exports = {
         .setRequired(false)
     ),
   async execute(interaction) {
+    // Flush fight session if it exists (unified logic)
+    const fightSessionManager = require('../fightSessionManager');
     const userId = interaction.user.id;
+    await fightSessionManager.flushIfExists(userId);
     let character = await getCharacter(userId);
 
     if (character) {
@@ -28,15 +31,6 @@ module.exports = {
       const level = character.level || 1;
       const xpForNext = getXpForNextLevel(level);
 
-      // Level up if necessary (may level up multiple times)
-      const { leveledUp, levelUpMsg } = checkLevelUp(character);
-      if (leveledUp) {
-        await saveCharacter(userId, character);
-        await interaction.reply({
-          content: levelUpMsg,
-  
-        });
-      }
 
       // Always update class in case level/class is out of sync
       character.class = getClassForLevel(character.level);
@@ -198,7 +192,6 @@ module.exports = {
           color: 0x3498db,
           footer: { text: 'Your RPG Character Sheet' }
         }],
-
       });
     } else {
       // Prompt for name if not provided

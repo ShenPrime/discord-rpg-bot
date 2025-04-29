@@ -5,6 +5,7 @@ const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder } = requi
 
 const { getCharacter, saveCharacter } = require('../characterModel');
 
+const fightSessionManager = require('../fightSessionManager');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -12,9 +13,11 @@ module.exports = {
     .setDescription('Sell individual items with count 1 from your inventory.'),
 
   async execute(interaction, page = 0) {
+    // Flush fight session if it exists
+    const userId = interaction.user.id;
+    await fightSessionManager.flushIfExists(userId);
     // Show all sellable items (count: 1, not gold), paginated
     const paginateSelectMenu = require('../paginateSelectMenu');
-    const userId = interaction.user.id;
     let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
       await interaction.reply({ content: 'You have no inventory to sell from!', ephemeral: true });
@@ -71,9 +74,12 @@ if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') 
     return;
   },
   async handleSelect(interaction) {
+    // Flush fight session if it exists
+    const fightSessionManager = require('../fightSessionManager');
+    const userId = interaction.user.id;
+    await fightSessionManager.flushIfExists(userId);
     const delimiter = '|||';
     const paginateSelectMenu = require('../paginateSelectMenu');
-    const userId = interaction.user.id;
     
     let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {

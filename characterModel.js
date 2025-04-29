@@ -35,8 +35,9 @@ module.exports = {
   deleteCharacter,
   // Collections and active display fields for houses and mounts
   CHARACTER_COLLECTIONS_DEFAULTS: {
-    collections: { houses: [], mounts: [], weapons: [], armor: [] },
+    collections: { houses: [], mounts: [], weapons: [], armor: [], familiars: [] },
     activeHouse: null,
-    activeMount: null
+    activeMount: null,
+    activeFamiliar: null
   }
 };

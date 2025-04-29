@@ -2,6 +2,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { lootTable } = require('./loot');
 const mergeOrAddInventoryItem = require('../mergeOrAddInventoryItem');
+const fightSessionManager = require('../fightSessionManager');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -12,12 +13,21 @@ module.exports = {
     const { getXpForNextLevel, checkLevelUp } = require('../characterUtils');
     const { getCharacter, saveCharacter } = require('../characterModel');
     const userId = interaction.user.id;
-    let character = await getCharacter(userId);
-    if (!character) {
-      const respond = replyFn || (data => interaction.reply(data));
-      await respond({ content: 'You do not have a character yet. Use /character to create one!', ephemeral: true });
-      return;
+    // Use session.character if available, otherwise fetch from DB
+    let session = fightSessionManager.getSession(userId);
+    let character;
+    if (session && session.character) {
+      character = session.character;
+    } else {
+      character = await getCharacter(userId);
+      if (!character) {
+        const respond = replyFn || (data => interaction.reply(data));
+        await respond({ content: 'You do not have a character yet. Use /character to create one!', ephemeral: true });
+        return;
+      }
     }
+    // Session data to accumulate
+    let sessionDelta = { gold: 0, xp: 0, loot: [], collections: { houses: [], mounts: [], weapons: [], armor: [], familiars: [] } };
     // Overhauled fight logic: D20 + stat modifiers
     // Player strength = level (plus any active effects)
     const level = character.level || 1;
@@ -90,7 +100,6 @@ module.exports = {
         }
         let lootItems;
         if (lootType === 'familiar') {
-          // require familiarTable from loot.js
           const { familiarTable } = require('./loot');
           lootItems = familiarTable;
         } else {
@@ -127,59 +136,48 @@ module.exports = {
     }
     // Apply rewards
     if (xpGained > 0) {
-      character.xp = (character.xp || 0) + xpGained;
+      sessionDelta.xp += xpGained;
       reason += `\nYou gained ${xpGained} XP!`;
     }
     if (loot) {
       if (loot.type === 'Familiar' || loot.type === 'familiar') {
-        character.collections = character.collections || {};
-        character.collections.familiars = character.collections.familiars || [];
-        const existing = character.collections.familiars.find(f => f.name === loot.name);
-        if (!existing) {
-          character.collections.familiars.push({ name: loot.name, rarity: loot.rarity, count: 1 });
-          lootMsg = `🎉 You befriended a new Familiar: **${loot.name}**! (Rarity: ${loot.rarity})\nIt has been added to your Collections.`;
-        } else {
-          existing.count = (existing.count || 1) + 1;
-          lootMsg = `You encountered **${loot.name}** again! (Rarity: ${loot.rarity})\nYour collection count for this Familiar is now ${existing.count}.`;
+        // Add to session familiars collection
+        sessionDelta.collections.familiars.push({ name: loot.name, rarity: loot.rarity, count: 1 });
+        lootMsg = `🎉 You befriended a Familiar: **${loot.name}**! (Rarity: ${loot.rarity})\nIt has been added to your Collections.`;
+      } else if (loot.type === 'Weapon' || loot.type === 'Armor') {
+        // Add epic/legendary weapons/armor to collections
+        if (loot.rarity === 'epic' || loot.rarity === 'legendary') {
+          if (loot.type === 'Weapon') sessionDelta.collections.weapons.push(loot);
+          else if (loot.type === 'Armor') sessionDelta.collections.armor.push(loot);
         }
+        // Add to loot (inventory)
+        sessionDelta.loot.push({ ...loot });
+      } else if (loot.type === 'currency' && loot.name.match(/Gold/i)) {
+        let goldAmount = loot.count || loot.amount || loot.price || 1;
+        sessionDelta.gold += goldAmount;
       } else {
-        if (!Array.isArray(character.inventory)) character.inventory = [];
-        // Match /explore.js: Directly merge currency/gold loot
-        if (loot.type === 'currency' && loot.name.match(/Gold/i)) {
-          const addGoldToInventory = require('../addGoldToInventory');
-          let goldAmount = loot.count || loot.amount || loot.price || 1;
-          addGoldToInventory(character.inventory, goldAmount);
-        } else {
-          // All items except those with 'uses' should be stackable
-          const isStackable = loot && !loot.uses;
-          if (isStackable) {
-            mergeOrAddInventoryItem(character.inventory, loot);
-            // Add epic/legendary weapons/armor to collections
-            if (loot && (loot.type === 'Weapon' || loot.type === 'Armor') && (loot.rarity === 'epic' || loot.rarity === 'legendary')) {
-              character.collections = character.collections || { houses: [], mounts: [], weapons: [], armor: [] };
-              const mergeOrAddCollectionItem = require('../mergeOrAddCollectionItem');
-              if (loot.type === 'Weapon') {
-                mergeOrAddCollectionItem(character.collections.weapons, loot);
-              } else if (loot.type === 'Armor') {
-                mergeOrAddCollectionItem(character.collections.armor, loot);
-              }
-            }
-          } else {
-            character.inventory.push({ ...loot, count: 1 });
-          }
-        }
+        sessionDelta.loot.push({ ...loot });
       }
       reason += `\n${lootMsg}`;
     }
-    // Handle level up
-    const { leveledUp, levelUpMsg: levelUpMsgUtil } = checkLevelUp(character);
+    // PREVIEW: Check if user will level up with session XP applied (for immediate feedback)
+    const previewCharacter = JSON.parse(JSON.stringify(character));
+    previewCharacter.xp = (previewCharacter.xp || 0) + sessionDelta.xp;
+    const { leveledUp, levelUpMsg: levelUpMsgUtil } = checkLevelUp(previewCharacter);
     if (leveledUp) levelUpMsg += levelUpMsgUtil;
+    // Now apply sessionDelta to session
+    if (leveledUp) {
+      await fightSessionManager.createOrUpdateSession(userId, sessionDelta);
+      await fightSessionManager.flushOnLevelUp(userId);
+    } else {
+      await fightSessionManager.createOrUpdateSession(userId, sessionDelta);
+    }
     // Decrement usesLeft for temporary effects and remove expired ones
     if (character.activeEffects && Array.isArray(character.activeEffects)) {
       character.activeEffects = character.activeEffects.map(e => ({...e, usesLeft: e.usesLeft - 1})).filter(e => e.usesLeft > 0);
     }
-    // Save
-    await saveCharacter(userId, character);
+    // Save is now handled by session manager (except level up flush)
+    // await saveCharacter(userId, character);
     // Add 'Fight Again' button
     const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
     const row = new ActionRowBuilder().addComponents(
@@ -190,7 +188,16 @@ module.exports = {
     );
     const respond = replyFn || (data => interaction.reply({ ...data, flags: 64 }));
     const xpForNext = getXpForNextLevel(character.level || 1);
-    const levelLine = `Level: ${character.level || 1} | XP: ${character.xp} / ${xpForNext}`;
+    // Show XP: if using session.character, do NOT add sessionXp again
+    const fightSession = fightSessionManager.getSession(userId);
+    let xpDisplay;
+    if (fightSession && fightSession.character) {
+      xpDisplay = fightSession.character.xp || 0;
+    } else {
+      const sessionXp = fightSession ? fightSession.xp : 0;
+      xpDisplay = (character.xp || 0) + sessionXp;
+    }
+    const levelLine = `Level: ${character.level || 1} | XP: ${xpDisplay} / ${xpForNext}`;
     try {
       await respond({ content: `Battle result: ${outcome}\n${reason}${levelUpMsg}\n${levelLine}`, components: [row] });
     } catch (err) {
