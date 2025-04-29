@@ -1,14 +1,8 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
-
-// Loot table extracted from explore.js/fight.js for shop
-// Character file helpers
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getCharacter, saveCharacter } = require('../characterModel');
-
 const { houseTable, mountTable, armorTable, weaponTable, potionTable } = require('./loot');
 const mergeOrAddInventoryItem = require('../mergeOrAddInventoryItem');
 const mergeOrAddCollectionItem = require('../mergeOrAddCollectionItem');
-
-// Houses (scaling size & price)
 
 module.exports = {
   data: new SlashCommandBuilder()

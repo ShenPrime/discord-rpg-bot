@@ -33,7 +33,7 @@ module.exports = {
     character.xp = (character.xp || 0) + xpGained;
     const { leveledUp, levelUpMsg } = checkLevelUp(character);
     // Use centralized loot table
-    const { exploreTable } = require('./loot');
+    const { exploreTable } = require('../commands/loot');
     // Helper: filter loot by type
     const { getLootByType, weightedRandomItem } = require('../lootUtils');
     // Stats influence exploration (apply temporary effects)
