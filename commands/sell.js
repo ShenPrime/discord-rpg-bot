@@ -1,7 +1,7 @@
 const multiSellSessions = new Map(); // userId -> { items, timestamp }
 const MULTI_SELL_TTL = 5 * 60 * 1000; // 5 minutes
 
-const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, MessageFlags } = require('discord.js');
 
 const { getCharacter, saveCharacter } = require('../characterModel');
 
@@ -20,7 +20,7 @@ module.exports = {
     const paginateSelectMenu = require('../paginateSelectMenu');
     let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
-      await interaction.reply({ content: 'You have no inventory to sell from!', ephemeral: true });
+      await interaction.reply({ content: 'You have no inventory to sell from!', flags: MessageFlags.Ephemeral });
       return;
     }
     // Filter sellable items (count: 1, not gold), must actually exist in inventory and not be equipped
@@ -46,7 +46,7 @@ if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') 
       await interaction.reply({
         content: `You have no items to sell!`,
         components: [],
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
@@ -69,7 +69,7 @@ if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') 
     await interaction.reply({
       content,
       components,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   },
@@ -83,14 +83,14 @@ if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') 
     
     let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
-      await interaction.reply({ content: 'You have no inventory to sell from!', ephemeral: true });
+      await interaction.reply({ content: 'You have no inventory to sell from!', flags: MessageFlags.Ephemeral });
       return;
     }
     // Pagination for item select menu
     if (/^sell_page_(\d+)$/.test(interaction.customId)) {
       const match = interaction.customId.match(/^sell_page_(\d+)$/);
       if (!match) {
-        await interaction.reply({ content: 'Invalid page navigation.', ephemeral: true });
+        await interaction.reply({ content: 'Invalid page navigation.', flags: MessageFlags.Ephemeral });
         return;
       }
       const page = parseInt(match[1], 10);
@@ -110,7 +110,7 @@ if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') 
       const invalids = selectedItems.filter(item => !item || typeof item !== 'object' || /gold/i.test(item.name));
 
       if (invalids.length > 0) {
-        await interaction.update({ content: 'One or more invalid items selected.', components: [], ephemeral: true });
+        await interaction.update({ content: 'One or more invalid items selected.', components: [], flags: MessageFlags.Ephemeral });
         return;
       }
 
@@ -163,7 +163,7 @@ if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') 
           character.inventory.splice(idx, 1);
         }
         if (soldItems.length === 0) {
-          await interaction.update({ content: 'No valid items were selected to sell.', components: [], ephemeral: true });
+          await interaction.update({ content: 'No valid items were selected to sell.', components: [], flags: MessageFlags.Ephemeral });
           return;
         }
         addGoldToInventory(character.inventory, totalGold);
@@ -171,7 +171,7 @@ if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') 
         await interaction.update({
           content: `✅ Sold ${soldItems.join(', ')}!\nTotal Gold Earned: ${totalGold}`,
           components: [],
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
         return;
       } else {
@@ -182,7 +182,7 @@ if (typeof item.name === 'string' && item.name.trim().toLowerCase() === 'gold') 
 - Any number of non-stackable (single) items to sell at once.
 You cannot mix stackables and singles or select multiple stackables.`,
           components: [],
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
         return;
       }
@@ -200,7 +200,7 @@ You cannot mix stackables and singles or select multiple stackables.`,
         // Look up stackable items from in-memory store
         const session = multiSellSessions.get(interaction.user.id);
         if (!session || !session.items) {
-          await interaction.reply({ content: 'Session expired or invalid. Please try again.', ephemeral: true });
+          await interaction.reply({ content: 'Session expired or invalid. Please try again.', flags: MessageFlags.Ephemeral });
           return;
         }
         const stackableItems = session.items;
@@ -243,7 +243,7 @@ You cannot mix stackables and singles or select multiple stackables.`,
             if (!interaction.replied && !interaction.deferred) {
               await debugModal(interaction);
               // Also send extracted qty debug info
-              await interaction.followUp({ content: `DEBUG QTY INFO for ${item.name}:\n${debugQtyInfo}`, ephemeral: true });
+              await interaction.followUp({ content: `DEBUG QTY INFO for ${item.name}:\n${debugQtyInfo}`, flags: MessageFlags.Ephemeral });
             }
             messages.push(`❌ ${item.name}: Sell between 1 and ${item.count}.`);
             continue;
@@ -268,7 +268,7 @@ You cannot mix stackables and singles or select multiple stackables.`,
         const confirmation = messages.join('\n') + (totalGold ? `\nTotal Gold Earned: ${totalGold}` : '');
         // Defer reply if not already handled
         if (!interaction.replied && !interaction.deferred) {
-          await interaction.deferReply({ ephemeral: true });
+          await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         }
         // Always use editReply for confirmation
         await interaction.editReply({
@@ -281,7 +281,7 @@ You cannot mix stackables and singles or select multiple stackables.`,
         //       'messages: ' + JSON.stringify(messages) + '\n' +
         //       'totalGold: ' + totalGold + '\n' +
         //       'inventory: ' + JSON.stringify(character.inventory),
-        //     ephemeral: true
+        //     flags: MessageFlags.Ephemeral
         //   });
         // } catch(e) {/* ignore if followUp fails */}
         return;
@@ -323,7 +323,7 @@ You cannot mix stackables and singles or select multiple stackables.`,
       let qty = interaction.fields.getTextInputValue('quantity');
       qty = qty === 'all' ? item.count : parseInt(qty, 10);
       if (!qty || qty < 1 || qty > item.count) {
-        await interaction.reply({ content: `You can only sell between 1 and ${item.count} of your ${item.name}.`, ephemeral: true });
+        await interaction.reply({ content: `You can only sell between 1 and ${item.count} of your ${item.name}.`, flags: MessageFlags.Ephemeral });
         return;
       }
       const price = item.price || 10;
@@ -339,12 +339,12 @@ You cannot mix stackables and singles or select multiple stackables.`,
       await saveCharacter(userId, character);
       await interaction.reply({
         content: `✅ Sold **${item.name}** x${qty} for ${sellPrice * qty} Gold!`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
     // Fallback
-    await interaction.reply({ content: 'Invalid selection.', ephemeral: true });
+    await interaction.reply({ content: 'Invalid selection.', flags: MessageFlags.Ephemeral });
   }
 };
 

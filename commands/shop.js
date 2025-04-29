@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 
 // Loot table extracted from explore.js/fight.js for shop
 // Character file helpers
@@ -104,7 +104,7 @@ module.exports = {
     }
     // Send select menu
     if (choices.length === 0) {
-      await interaction.reply({ content: `There is nothing to buy in the ${category} shop.`, ephemeral: true });
+      await interaction.reply({ content: `There is nothing to buy in the ${category} shop.`, flags: MessageFlags.Ephemeral });
       return;
     }
     // Use global pagination utility
@@ -122,7 +122,7 @@ module.exports = {
     await interaction.reply({
       content,
       components,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   },
 
@@ -137,7 +137,7 @@ module.exports = {
     if (!category) {
       try {
         if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: 'Could not determine shop category. Please try again.', ephemeral: true });
+          await interaction.reply({ content: 'Could not determine shop category. Please try again.', flags: MessageFlags.Ephemeral });
         }
       } catch (e) {
         // Ignore expired interaction errors
@@ -257,7 +257,7 @@ module.exports = {
         await interaction.update({
           content: purchaseResults.join('\n') + `\nRemaining gold: ${gold} Gold`,
           components: [],
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
       }
     } catch (e) {

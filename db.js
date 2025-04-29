@@ -9,7 +9,7 @@ let db;
 
 async function connect() {
   if (!client || !db) {
-    client = new MongoClient(uri, { useUnifiedTopology: true });
+    client = new MongoClient(uri);
     await client.connect();
     db = client.db(dbName);
   }

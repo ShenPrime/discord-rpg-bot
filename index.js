@@ -11,11 +11,11 @@ const use = require('./commands/use.js');
 const character = require('./commands/character.js');
 const deletecharacter = require('./commands/deletecharacter.js');
 const exo_leaderboard = require('./commands/exo_leaderboard.js');
-const explore = require('./commands/explore.js');
+// const explore = require('./commands/explore.js'); // Deprecated
 const fight = require('./commands/fight.js');
 const inventory = require('./commands/inventory.js');
 const ping = require('./commands/ping.js');
-const sell_stack = require('./commands/sell_stack.js');
+// const sell_stack = require('./commands/sell_stack.js'); // Deprecated
 const loot = require('./commands/loot.js');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -189,12 +189,6 @@ client.on(Events.InteractionCreate, async interaction => {
         await interaction.reply({ content: 'There was an error processing your inventory action!', ephemeral: true });
       }
     }
-  } else if (interaction.isButton() && interaction.customId === 'explore_again') {
-    // Rerun the explore command logic for the user, updating the original message
-    const exploreCommand = client.commands.get('explore');
-    if (exploreCommand) {
-      await exploreCommand.execute(interaction, (data) => interaction.update({ ...data, ephemeral: true }));
-    }
   } else if (interaction.isButton() && interaction.customId === 'fight_again') {
     // Rerun the fight command logic for the user, updating the original message
     const fightCommand = client.commands.get('fight');
@@ -236,7 +230,4 @@ client.on(Events.InteractionCreate, async interaction => {
     }
   }
 });
-
 client.login(process.env.DISCORD_TOKEN);
-
-// TODO: Add RPG features (character, exploration, combat, inventory, leveling)

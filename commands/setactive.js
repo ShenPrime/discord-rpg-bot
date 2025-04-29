@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
+const { SlashCommandBuilder, StringSelectMenuBuilder, ActionRowBuilder, MessageFlags } = require('discord.js');
 const { getCharacter, saveCharacter } = require('../characterModel');
 
 
@@ -30,7 +30,7 @@ module.exports = {
       else if (type === 'mount') noneMsg = `You don't own any mounts yet!`;
       await interaction.reply({
         content: noneMsg,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
@@ -50,7 +50,7 @@ module.exports = {
     await interaction.reply({
       content: `Choose which ${type} to display on your character sheet:`,
       components: [row],
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   },
   // Handler for select menu
@@ -65,14 +65,14 @@ module.exports = {
     if (!character || !character.collections || !Array.isArray(character.collections[type + 's'])) {
       await interaction.reply({
         content: `Could not update your ${type}. Please try again.`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
     if (!character.collections[type + 's'].some(item => item.name === value)) {
       await interaction.reply({
         content: `You do not own that ${type}.`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
@@ -83,7 +83,7 @@ module.exports = {
     await interaction.update({
       content: `Your active ${type} is now **${value}**!`,
       components: [],
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   }
 };

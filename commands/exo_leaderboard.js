@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getAllCharacters } = require('../characterModel');
 
 module.exports = {
@@ -11,7 +11,7 @@ module.exports = {
     try {
       characters = await getAllCharacters();
     } catch (e) {
-      await interaction.reply({ content: 'Could not load character data.', ephemeral: true });
+      await interaction.reply({ content: 'Could not load character data.', flags: MessageFlags.Ephemeral });
       return;
     }
     // Sort by level (desc), then XP (desc)

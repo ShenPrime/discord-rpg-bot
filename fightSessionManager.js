@@ -3,6 +3,27 @@ const { getCharacter, saveCharacter } = require('./characterModel');
 const fightSessions = new Map();
 const INACTIVITY_TIMEOUT = 10000; // 10 seconds
 
+function getMemoryUsageStats() {
+  const mem = process.memoryUsage();
+  return {
+    rss: mem.rss,
+    heapTotal: mem.heapTotal,
+    heapUsed: mem.heapUsed,
+    external: mem.external,
+    arrayBuffers: mem.arrayBuffers
+  };
+}
+
+function logActiveSessions(context = '') {
+  const count = fightSessions.size;
+  const mem = getMemoryUsageStats();
+  console.log(`[SessionMonitor] Active sessions: ${count}${context ? ' | ' + context : ''} | Memory: RSS ${(mem.rss/1048576).toFixed(2)}MB, Heap ${(mem.heapUsed/1048576).toFixed(2)}/${(mem.heapTotal/1048576).toFixed(2)}MB`);
+}
+
+function getActiveSessionCount() {
+  return fightSessions.size;
+}
+
 function getSession(userId) {
   return fightSessions.get(userId);
 }
@@ -31,6 +52,7 @@ async function createOrUpdateSession(userId, delta) {
       lastActivity: Date.now(),
     };
     fightSessions.set(userId, session);
+    logActiveSessions('after session creation');
   }
   session.gold += delta.gold || 0;
   session.xp += delta.xp || 0;
@@ -127,10 +149,11 @@ async function flushSession(userId) {
     }
   }
   await saveCharacter(userId, character);
-  console.log('[Session FLUSHED]', { userId, flushed: session });
+  //console.log('[Session FLUSHED]', { userId, flushed: session });
   // Reset session.character snapshot after flush
   if (session.character) session.character = null;
   fightSessions.delete(userId);
+  logActiveSessions('after session flush/delete');
 }
 
 async function flushOnLevelUp(userId) {
@@ -149,4 +172,6 @@ module.exports = {
   flushSession,
   flushOnLevelUp,
   flushIfExists,
+  getActiveSessionCount,
+  getMemoryUsageStats,
 };

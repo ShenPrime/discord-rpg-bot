@@ -1,5 +1,5 @@
 // commands/inventory.js
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 
 // Utility functions to load/save characters (shared with character.js)
 const { getCharacter, saveCharacter } = require('../characterModel');
@@ -48,7 +48,7 @@ module.exports = {
     await fightSessionManager.flushIfExists(userId);
     let character = await getCharacter(interaction.user.id);
     if (!character) {
-      await respond({ content: 'You do not have a character yet. Use /character to create one!', ephemeral: true });
+      await respond({ content: 'You do not have a character yet. Use /character to create one!', flags: MessageFlags.Ephemeral });
       return;
     }
     // Ensure inventory exists
@@ -57,7 +57,7 @@ module.exports = {
       await saveCharacter(userId, character);
     }
     if (character.inventory.length === 0) {
-      await respond({ content: 'Your inventory is empty.', ephemeral: true });
+      await respond({ content: 'Your inventory is empty.', flags: MessageFlags.Ephemeral });
       return;
     }
       // Rich formatting: numbered, grouped with icons
@@ -271,7 +271,7 @@ if (interaction.isButton && interaction.isButton() && interaction.customId === '
     content: 'Are you sure? This will sell **all unequipped items** except for **potions** and items of rarity **epic** or **legendary**? This cannot be undone.',
     embeds: [],
     components: [confirmSellAllRow],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
   return;
 }
@@ -323,7 +323,7 @@ if (interaction.isButton && interaction.isButton() && interaction.customId === '
     content: saleSummary.length ? undefined : 'No unequipped items to sell!',
     embeds: saleSummary.length ? [embed] : [],
     components: saleSummary.length ? components : [],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
   // Store summary in memory for pagination (could use a cache or DB for persistence)
   interaction.client._lastSaleSummary = {
@@ -342,12 +342,12 @@ if (
   const page = match ? parseInt(match[1], 10) : 0;
   const summaryData = interaction.client._lastSaleSummary;
   if (!summaryData || summaryData.userId !== userId) {
-    await interaction.update({ content: 'Sale summary not found or expired.', embeds: [], components: [], ephemeral: true });
+    await interaction.update({ content: 'Sale summary not found or expired.', embeds: [], components: [], flags: MessageFlags.Ephemeral });
     return;
   }
   const { getSaleSummaryEmbed } = require('./saleSummary');
   const { embed, components } = getSaleSummaryEmbed(summaryData.saleSummary, summaryData.totalGold, page);
-  await interaction.update({ embeds: [embed], components, ephemeral: true });
+  await interaction.update({ embeds: [embed], components, flags: MessageFlags.Ephemeral });
   return;
 }
 if (interaction.isButton && interaction.isButton() && interaction.customId === 'inventory_sell_all_cancel') {
@@ -356,16 +356,16 @@ if (interaction.isButton && interaction.isButton() && interaction.customId === '
     content: 'Sell all unequipped cancelled.',
     embeds: [],
     components: [],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
   return;
 }
 if (interaction.isButton && interaction.isButton()) {
-  await interaction.update({ embeds: [embed], components: [selectRow, buttonRow], ephemeral: true });
+  await interaction.update({ embeds: [embed], components: [selectRow, buttonRow], flags: MessageFlags.Ephemeral });
 } else if (interaction.isStringSelectMenu && interaction.isStringSelectMenu()) {
-  await interaction.update({ embeds: [embed], components: [selectRow, buttonRow], ephemeral: true });
+  await interaction.update({ embeds: [embed], components: [selectRow, buttonRow], flags: MessageFlags.Ephemeral });
 } else {
-  await interaction.reply({ embeds: [embed], components: [selectRow, buttonRow], ephemeral: true });
+  await interaction.reply({ embeds: [embed], components: [selectRow, buttonRow], flags: MessageFlags.Ephemeral });
 }
 return;
   }
