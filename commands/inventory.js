@@ -322,7 +322,7 @@ const confirmSellAllRow = new ActionRowBuilder().addComponents(
 if (interaction.isButton && interaction.isButton() && interaction.customId === 'inventory_sell_all') {
   // Prompt user for confirmation
   await interaction.update({
-    content: 'Are you sure? This will sell **all unequipped items** except for **potions** and items of rarity **epic** or **legendary**? This cannot be undone.',
+    content: 'Are you sure? This will sell **all unequipped items**. This cannot be undone.',
     embeds: [],
     components: [confirmSellAllRow],
     flags: MessageFlags.Ephemeral
@@ -336,14 +336,11 @@ if (interaction.isButton && interaction.isButton() && interaction.customId === '
   let updatedInventory = [];
   for (const item of character.inventory) {
     if (typeof item === 'object' && item.name !== 'Gold') {
-      const isPotion = /potion/i.test(item.name);
-      const rarity = (item.rarity || (item.data && item.data.rarity) || '').toLowerCase();
-      const isEpicOrLegendary = rarity === 'epic' || rarity === 'legendary';
       const equippedCount = equippedCounts[item.name] || 0;
       const count = item.count || 1;
       const unequippedCount = count - equippedCount;
       const sellPrice = (item.type === 'Gem') ? (item.price || 10) : (item.price ? Math.floor(item.price * 0.4) : 4);
-      if (!isPotion && !isEpicOrLegendary && unequippedCount > 0) {
+      if (unequippedCount > 0) {
         sellableGold += sellPrice * unequippedCount;
         saleSummary.push({ name: item.name, count: unequippedCount, gold: sellPrice * unequippedCount });
         if (equippedCount > 0) {
