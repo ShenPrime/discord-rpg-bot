@@ -1,7 +1,6 @@
-const { SlashCommandBuilder } = require('discord.js');
-
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getCharacter, saveCharacter } = require('../characterModel');
-
+const fightSessionManager = require('../fightSessionManager');
 
 // No ITEM_EFFECTS needed; use lootTable for slot and stats
 const { lootTable } = require('./loot');
@@ -28,7 +27,8 @@ module.exports = {
     ),
   async autocomplete(interaction) {
     const userId = interaction.user.id;
-    
+    // Flush any pending fight session for this user before autocomplete
+    await fightSessionManager.flushIfExists(userId);
     let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
       await interaction.respond([]);
@@ -79,10 +79,9 @@ module.exports = {
 
   async execute(interaction) {
     const userId = interaction.user.id;
-    
     let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
-      await interaction.reply({ content: 'You have no inventory to equip from!', ephemeral: true });
+      await interaction.reply({ content: 'You have no inventory to equip from!', flags: MessageFlags.Ephemeral });
       return;
     }
     const itemName = interaction.options.getString('item');
@@ -91,12 +90,12 @@ module.exports = {
       return name === itemName;
     });
     if (invIdx === -1) {
-      await interaction.reply({ content: `You do not have any ${itemName} to equip.`, ephemeral: true });
+      await interaction.reply({ content: `You do not have any ${itemName} to equip.`, flags: MessageFlags.Ephemeral });
       return;
     }
     let item = character.inventory[invIdx];
     if (!isEquipable(item)) {
-      await interaction.reply({ content: `${itemName} cannot be equipped.`, ephemeral: true });
+      await interaction.reply({ content: `${itemName} cannot be equipped.`, flags: MessageFlags.Ephemeral });
       return;
     }
     // Equip logic (simple version: equip to the slot, unequip old if needed)
@@ -127,6 +126,6 @@ module.exports = {
     await saveCharacter(userId, character);
     let msg = `✅ Equipped **${itemName}** in slot ${slot}.`;
     if (unequipped) msg += ` (Unequipped **${unequipped}**.)`;
-    await interaction.reply({ content: msg, ephemeral: true });
+    await interaction.reply({ content: msg, flags: MessageFlags.Ephemeral });
   }
 };

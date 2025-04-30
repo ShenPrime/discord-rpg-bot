@@ -1,8 +1,18 @@
 // commands/explore.js
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const mergeOrAddInventoryItem = require('../mergeOrAddInventoryItem');
 
 module.exports = {
+  data: {
+    name: 'explore',
+    description: '[DEPRECATED] This command is no longer supported.'
+  },
+  async execute(interaction) {
+    await interaction.reply({ content: '⚠️ The /explore command is deprecated and should not be used. Please use the new commands instead.', flags: MessageFlags.Ephemeral });
+    return;
+  },
+// --- DEPRECATED LOGIC BELOW ---
+
   data: new SlashCommandBuilder()
     .setName('explore')
     .setDescription('Explore a mysterious area and discover what happens!'),
@@ -13,7 +23,7 @@ module.exports = {
     const { getCharacter, saveCharacter } = require('../characterModel');
     let character = await getCharacter(userId);
     if (!character) {
-      await interaction.reply({ content: 'You do not have a character yet. Use /character to create one!', ephemeral: true });
+      await interaction.reply({ content: 'You do not have a character yet. Use /character to create one!', flags: MessageFlags.Ephemeral });
       return;
     }
     // Ensure inventory exists
@@ -23,7 +33,7 @@ module.exports = {
     character.xp = (character.xp || 0) + xpGained;
     const { leveledUp, levelUpMsg } = checkLevelUp(character);
     // Use centralized loot table
-    const { exploreTable } = require('./loot');
+    const { exploreTable } = require('../commands/loot');
     // Helper: filter loot by type
     const { getLootByType, weightedRandomItem } = require('../lootUtils');
     // Stats influence exploration (apply temporary effects)
@@ -96,9 +106,9 @@ module.exports = {
         .setStyle(ButtonStyle.Primary)
     );
     if (replyFn) {
-      await replyFn({ content: reply, components: [row], ephemeral: true });
+      await replyFn({ content: reply, components: [row], flags: MessageFlags.Ephemeral });
     } else {
-      await interaction.reply({ content: reply, components: [row], ephemeral: true });
+      await interaction.reply({ content: reply, components: [row], flags: MessageFlags.Ephemeral });
     }
   }
 };

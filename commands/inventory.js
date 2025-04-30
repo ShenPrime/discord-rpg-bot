@@ -1,5 +1,5 @@
 // commands/inventory.js
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 
 // Utility functions to load/save characters (shared with character.js)
 const { getCharacter, saveCharacter } = require('../characterModel');
@@ -20,6 +20,10 @@ module.exports = {
     .setName('inventory')
     .setDescription('Check your inventory.'),
   async execute(interaction) {
+    // Flush fight session if it exists
+    const fightSessionManager = require('../fightSessionManager');
+    const userId = interaction.user.id;
+    await fightSessionManager.flushIfExists(userId);
     // Always initialize category and page to defaults
     let category = 'everything';
     let page = 0;
@@ -40,10 +44,11 @@ module.exports = {
     }
     const isButton = interaction.isButton && interaction.isButton();
     const respond = (...args) => isButton ? interaction.update(...args) : interaction.reply(...args);
-    const userId = interaction.user.id;
-    let character = await getCharacter(userId);
+    // Flush fight session if it exists (unified logic)
+    await fightSessionManager.flushIfExists(userId);
+    let character = await getCharacter(interaction.user.id);
     if (!character) {
-      await respond({ content: 'You do not have a character yet. Use /character to create one!', ephemeral: true });
+      await respond({ content: 'You do not have a character yet. Use /character to create one!', flags: MessageFlags.Ephemeral });
       return;
     }
     // Ensure inventory exists
@@ -52,7 +57,7 @@ module.exports = {
       await saveCharacter(userId, character);
     }
     if (character.inventory.length === 0) {
-      await respond({ content: 'Your inventory is empty.', ephemeral: true });
+      await respond({ content: 'Your inventory is empty.', flags: MessageFlags.Ephemeral });
       return;
     }
       // Rich formatting: numbered, grouped with icons
@@ -90,11 +95,23 @@ const typeIcons = {
   Gold: '💰',
   Armor: '🛡️',
   Default: '🎒'
-};function getItemType(item) {
-  if (/sword|axe|dagger|bow/i.test(item)) return 'Weapon';
-  if (/potion/i.test(item)) return 'Potion';
-  if (/gold/i.test(item)) return 'Gold';
-  if (/armor|shield|chainmail/i.test(item)) return 'Armor';
+};
+function getItemType(item) {
+  // Use item.type if present
+  if (typeof item === 'object' && item !== null && item.type) {
+    const type = item.type.toLowerCase();
+    if (type === 'weapon') return 'Weapon';
+    if (type === 'armor') return 'Armor';
+    if (type === 'potion') return 'Potion';
+    if (type === 'currency' || type === 'gold') return 'Gold';
+    return 'Default';
+  }
+  // Fallback: try to use name if type is missing
+  const name = typeof item === 'object' && item !== null ? (item.name || '') : (item || '');
+  if (/sword|axe|dagger|bow|mace|staff|wand/i.test(name)) return 'Weapon';
+  if (/potion/i.test(name)) return 'Potion';
+  if (/^gold$/i.test(name.trim())) return 'Gold';
+  if (/armor|shield|chainmail|helmet|chestplate|pants|ring|necklace|greaves|leggings|plate|mail|bracers|gauntlets|boots|crown|band|amulet/i.test(name)) return 'Armor';
   return 'Default';
 }
 // Count equipped items by name (excluding gold)
@@ -128,50 +145,144 @@ if (goldTotal > 0) {
     inline: false
   });
 }
-inventoryItems = inventoryItems.concat(uniqueItems.filter(itemName => itemName !== 'Gold').map((itemName) => {
+// Prepare inventory items (excluding gold) and sort by sell price
+const loot = require('./loot');
+const inventoryDisplayItems = uniqueItems.filter(itemName => itemName !== 'Gold').map((itemName) => {
   const entry = itemCounts[itemName];
-  const type = getItemType(itemName);
+  const lootItem = loot.lootTable.find(i => i.name === itemName);
+  // Always use lootTable for canonical price/type
+  const type = lootItem ? lootItem.type : undefined;
+  const price = lootItem ? lootItem.price : 0;
   const icon = typeIcons[type] || typeIcons.Default;
   const count = entry.count;
   let value = '';
-  if (typeof entry.data === 'object' && entry.data !== null) {
-    if (entry.data.rarity) value += `Rarity: ${entry.data.rarity}\n`;
-    if (entry.data.price) value += `Price: ${entry.data.price} Gold\n`;
-    if (entry.data.stats) {
-      const stats = Object.entries(entry.data.stats).map(([k, v]) => `${k.slice(0,3).toUpperCase()}: +${v}`).join(', ');
+  if (lootItem) {
+    if (lootItem.rarity) value += `Rarity: ${lootItem.rarity}\n`;
+    if (lootItem.stats) {
+      const stats = Object.entries(lootItem.stats).map(([k, v]) => `${k.slice(0,3).toUpperCase()}: +${v}`).join(', ');
       if (stats) value += `Stats: ${stats}\n`;
     }
-    if (entry.data.uses) value += `Uses: ${entry.data.uses}\n`;
-    if (entry.data.boost) value += `Boost: +${entry.data.boost} ${entry.data.stat || ''}\n`;
+    if (lootItem.uses) value += `Uses: ${lootItem.uses}\n`;
+    if (lootItem.boost) value += `Boost: +${lootItem.boost} ${lootItem.stat || ''}\n`;
   }
   if (entry.data && entry.data.count > 1) value += `Count: ${entry.data.count}`;
-  const sellPrice = (typeof entry.data === 'object' && entry.data.price) ? Math.floor(entry.data.price * 0.4) : 4;
+  let sellPrice = 0;
+  if (lootItem && lootItem.price) {
+    if (lootItem.name === 'Gem') {
+      sellPrice = lootItem.price;
+      value += `\nDEBUG: Gem detected by name, using full price`;
+    } else {
+      sellPrice = Math.floor(lootItem.price * 0.2);
+    }
+  } else if (entry.data && entry.data.price) {
+    sellPrice = Math.floor(entry.data.price * 0.2);
+  }
+  if (value && !value.endsWith('\n')) value += '\n';
+  value += `Sell Price: ${sellPrice} Gold`;
+
   return {
     name: `${icon} ${itemName}`,
     value: `${value.trim() || '—'}\nSell Price: ${sellPrice} Gold`,
-    inline: false
+    inline: false,
+    _sellPrice: sellPrice
   };
-}));
+});
+// Sort by sell price descending, then by name ascending
+inventoryDisplayItems.sort((a, b) => {
+  if (b._sellPrice !== a._sellPrice) return b._sellPrice - a._sellPrice;
+  return a.name.localeCompare(b.name);
+});
+// Remove _sellPrice property for display
+inventoryItems = inventoryItems.concat(inventoryDisplayItems.map(({_sellPrice, ...rest}) => rest));
 
 // Filter items by category
 function filterByCategory(items, cat) {
   if (cat === 'everything') return items;
-  if (cat === 'weapons') return items.filter(i => /⚔️/.test(i.name));
-  if (cat === 'armor') return items.filter(i => /🛡️/.test(i.name));
-  if (cat === 'potions') return items.filter(i => /🧪/.test(i.name));
+  if (cat === 'weapons') return items.filter(i => getItemType(i.name || i) === 'Weapon');
+  if (cat === 'armor') return items.filter(i => getItemType(i.name || i) === 'Armor');
+  if (cat === 'potions') return items.filter(i => getItemType(i.name || i) === 'Potion');
   return items;
 }
 if (!category) category = 'everything';
-const filtered = filterByCategory(inventoryItems, category);
+// Filter by category on the raw itemCounts, then map to display objects
+const filteredKeys = Object.keys(itemCounts).filter(itemName => {
+  if (category === 'everything') return true;
+  const type = getItemType(itemName);
+  if (category === 'weapons') return type === 'Weapon';
+  if (category === 'armor') return type === 'Armor';
+  if (category === 'potions') return type === 'Potion';
+  return true;
+});
+const filtered = [];
+if (goldTotal > 0 && (category === 'everything' || category === 'gold')) {
+  filtered.push({
+    name: `${typeIcons.Gold} Gold`,
+    value: `${goldTotal} Gold`,
+    inline: false
+  });
+}
+filtered.push(...filteredKeys.filter(itemName => itemName !== 'Gold').map((itemName) => {
+  const entry = itemCounts[itemName];
+  const loot = require('./loot');
+  const lootItem = loot.lootTable.find(i => i.name === itemName);
+  const type = lootItem ? lootItem.type : undefined;
+  const price = lootItem ? lootItem.price : 0;
+  const icon = typeIcons[type] || typeIcons.Default;
+  const count = entry.count;
+  let value = '';
+  if (lootItem) {
+    if (lootItem.rarity) value += `Rarity: ${lootItem.rarity}\n`;
+    if (lootItem.price) value += `Price: ${lootItem.price} Gold\n`;
+    if (lootItem.stats) {
+      const stats = Object.entries(lootItem.stats).map(([k, v]) => `${k.slice(0,3).toUpperCase()}: +${v}`).join(', ');
+      if (stats) value += `Stats: ${stats}\n`;
+    }
+    if (lootItem.uses) value += `Uses: ${lootItem.uses}\n`;
+    if (lootItem.boost) value += `Boost: +${lootItem.boost} ${lootItem.stat || ''}\n`;
+  }
+  if (entry.data && entry.data.count > 1) value += `Count: ${entry.data.count}`;
+  let sellPrice = 0;
+  if (lootItem && lootItem.type === 'Gem') {
+    sellPrice = price;
+  } else if (price) {
+    sellPrice = Math.floor(price * 0.2);
+  }
+  if (value && !value.endsWith('\n')) value += '\n';
+  value += `Sell Price: ${sellPrice} Gold`;
+  return {
+    name: `${icon} ${itemName}`,
+    value: value.trim() || '—',
+    inline: false
+  };
+}));
+// Sort filtered inventory by sell price descending, then by name ascending
+filtered.sort((a, b) => {
+  // Extract sell price from value string
+  const aMatch = a.value.match(/Sell Price: (\d+) Gold/);
+  const bMatch = b.value.match(/Sell Price: (\d+) Gold/);
+  const aPrice = aMatch ? parseInt(aMatch[1], 10) : 0;
+  const bPrice = bMatch ? parseInt(bMatch[1], 10) : 0;
+  if (bPrice !== aPrice) return bPrice - aPrice;
+  return a.name.localeCompare(b.name);
+});
 const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
 if (page < 0) page = 0;
 if (page >= totalPages) page = totalPages - 1;
-const pagedItems = filtered.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
+// Remove Gold from filtered items if present
+const filteredNoGold = filtered.filter(i => i.name !== `${typeIcons.Gold} Gold`);
+const pagedItems = filteredNoGold.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
+// Always prepend Gold as the first item
+const goldItem = {
+  name: `${typeIcons.Gold} Gold`,
+  value: `${goldTotal} Gold`,
+  inline: false
+};
+const pagedItemsWithGold = [goldItem, ...pagedItems];
 const embed = new EmbedBuilder()
   .setTitle(`${interaction.user.username}'s Inventory — ${INV_CATEGORIES.find(c => c.value === category).label}`)
   .setColor(0xffd700)
-  .setFooter({ text: `Page ${page + 1} of ${totalPages}` })
-  .setDescription(pagedItems.length ? pagedItems.map(i => `${i.name}\n${i.value}`).join('\n\n') : 'No items in this category.');
+  .setFooter({ text: `Page ${page + 1} of ${totalPages} | Gold: ${goldTotal}` })
+  .setDescription(pagedItemsWithGold.length ? pagedItemsWithGold.map(i => `${i.name}\n${i.value}`).join('\n\n') : 'No items in this category.');
 // Category select
 const selectRow = new ActionRowBuilder().addComponents(
   new StringSelectMenuBuilder()
@@ -211,10 +322,10 @@ const confirmSellAllRow = new ActionRowBuilder().addComponents(
 if (interaction.isButton && interaction.isButton() && interaction.customId === 'inventory_sell_all') {
   // Prompt user for confirmation
   await interaction.update({
-    content: 'Are you sure? This will sell **all unequipped items** except for **potions** and items of rarity **epic** or **legendary**? This cannot be undone.',
+    content: 'Are you sure? This will sell **all unequipped items**. This cannot be undone.',
     embeds: [],
     components: [confirmSellAllRow],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
   return;
 }
@@ -225,14 +336,11 @@ if (interaction.isButton && interaction.isButton() && interaction.customId === '
   let updatedInventory = [];
   for (const item of character.inventory) {
     if (typeof item === 'object' && item.name !== 'Gold') {
-      const isPotion = /potion/i.test(item.name);
-      const rarity = (item.rarity || (item.data && item.data.rarity) || '').toLowerCase();
-      const isEpicOrLegendary = rarity === 'epic' || rarity === 'legendary';
       const equippedCount = equippedCounts[item.name] || 0;
       const count = item.count || 1;
       const unequippedCount = count - equippedCount;
-      const sellPrice = item.price ? Math.floor(item.price * 0.4) : 4;
-      if (!isPotion && !isEpicOrLegendary && unequippedCount > 0) {
+      const sellPrice = (item.type === 'Gem') ? (item.price || 10) : (item.price ? Math.floor(item.price * 0.4) : 4);
+      if (unequippedCount > 0) {
         sellableGold += sellPrice * unequippedCount;
         saleSummary.push({ name: item.name, count: unequippedCount, gold: sellPrice * unequippedCount });
         if (equippedCount > 0) {
@@ -266,7 +374,7 @@ if (interaction.isButton && interaction.isButton() && interaction.customId === '
     content: saleSummary.length ? undefined : 'No unequipped items to sell!',
     embeds: saleSummary.length ? [embed] : [],
     components: saleSummary.length ? components : [],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
   // Store summary in memory for pagination (could use a cache or DB for persistence)
   interaction.client._lastSaleSummary = {
@@ -285,12 +393,12 @@ if (
   const page = match ? parseInt(match[1], 10) : 0;
   const summaryData = interaction.client._lastSaleSummary;
   if (!summaryData || summaryData.userId !== userId) {
-    await interaction.update({ content: 'Sale summary not found or expired.', embeds: [], components: [], ephemeral: true });
+    await interaction.update({ content: 'Sale summary not found or expired.', embeds: [], components: [], flags: MessageFlags.Ephemeral });
     return;
   }
   const { getSaleSummaryEmbed } = require('./saleSummary');
   const { embed, components } = getSaleSummaryEmbed(summaryData.saleSummary, summaryData.totalGold, page);
-  await interaction.update({ embeds: [embed], components, ephemeral: true });
+  await interaction.update({ embeds: [embed], components, flags: MessageFlags.Ephemeral });
   return;
 }
 if (interaction.isButton && interaction.isButton() && interaction.customId === 'inventory_sell_all_cancel') {
@@ -299,16 +407,16 @@ if (interaction.isButton && interaction.isButton() && interaction.customId === '
     content: 'Sell all unequipped cancelled.',
     embeds: [],
     components: [],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
   return;
 }
 if (interaction.isButton && interaction.isButton()) {
-  await interaction.update({ embeds: [embed], components: [selectRow, buttonRow], ephemeral: true });
+  await interaction.update({ embeds: [embed], components: [selectRow, buttonRow], flags: MessageFlags.Ephemeral });
 } else if (interaction.isStringSelectMenu && interaction.isStringSelectMenu()) {
-  await interaction.update({ embeds: [embed], components: [selectRow, buttonRow], ephemeral: true });
+  await interaction.update({ embeds: [embed], components: [selectRow, buttonRow], flags: MessageFlags.Ephemeral });
 } else {
-  await interaction.reply({ embeds: [embed], components: [selectRow, buttonRow], ephemeral: true });
+  await interaction.reply({ embeds: [embed], components: [selectRow, buttonRow], flags: MessageFlags.Ephemeral });
 }
 return;
   }

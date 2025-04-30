@@ -1,10 +1,12 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getCharacter } = require('../characterModel');
+const fightSessionManager = require('../fightSessionManager');
 
 const ITEMS_PER_PAGE = 10;
 const CATEGORIES = [
   { label: 'Houses', value: 'houses' },
   { label: 'Mounts', value: 'mounts' },
+  { label: 'Familiars', value: 'familiars' },
   { label: 'Weapons', value: 'weapons' },
   { label: 'Armor', value: 'armor' },
   { label: 'Everything', value: 'everything' }
@@ -30,6 +32,9 @@ module.exports = {
     .setName('collections')
     .setDescription('Show off your RPG collections (houses, mounts, epic/legendary weapons & armor)!'),
   async execute(interaction) {
+    const userId = interaction.user.id;
+    // Flush any pending fight session for this user before viewing collections
+    await fightSessionManager.flushIfExists(userId);
     let category = 'houses';
     let page = 0;
     if (interaction.isStringSelectMenu && interaction.isStringSelectMenu() && interaction.customId.startsWith('collections_cat')) {
@@ -46,8 +51,7 @@ module.exports = {
         page = parseInt(match[2], 10) || 0;
       }
     }
-    const userId = interaction.user.id;
-    const character = await getCharacter(userId);
+    const character = await getCharacter(interaction.user.id);
     if (!character || !character.collections) {
       await interaction.reply({
         content: "You don't own any collections yet!",
@@ -61,10 +65,13 @@ module.exports = {
     const weapons = filterEpicLegendary(character.collections.weapons);
     const armor = filterEpicLegendary(character.collections.armor);
     let items = [];
+    const familiars = character.collections.familiars || [];
     if (category === 'houses') {
       items = houses.map(h => formatItem(h, '🏠'));
     } else if (category === 'mounts') {
       items = mounts.map(m => formatItem(m, '🐎'));
+    } else if (category === 'familiars') {
+      items = familiars.map(f => formatItem(f, '🦊'));
     } else if (category === 'weapons') {
       items = weapons.map(w => formatItem(w, '🗡️'));
     } else if (category === 'armor') {
@@ -73,6 +80,7 @@ module.exports = {
       items = [
         ...houses.map(h => formatItem(h, '🏠')),
         ...mounts.map(m => formatItem(m, '🐎')),
+        ...familiars.map(f => formatItem(f, '🦊')),
         ...weapons.map(w => formatItem(w, '🗡️')),
         ...armor.map(a => formatItem(a, '🛡️'))
       ];

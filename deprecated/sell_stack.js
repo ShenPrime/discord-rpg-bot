@@ -1,7 +1,17 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getCharacter, saveCharacter } = require('../characterModel');
 
 module.exports = {
+  data: {
+    name: 'sell_stack',
+    description: '[DEPRECATED] This command is no longer supported.'
+  },
+  async execute(interaction) {
+    await interaction.reply({ content: '⚠️ The /sell_stack command is deprecated and should not be used. Please use the new /sell command instead.', flags: MessageFlags.Ephemeral });
+    return;
+  },
+// --- DEPRECATED LOGIC BELOW ---
+
   data: new SlashCommandBuilder()
     .setName('sell_stack')
     .setDescription('Sell a stackable item from your inventory for gold.')
@@ -72,7 +82,7 @@ module.exports = {
     
     let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
-      await interaction.reply({ content: 'You have no inventory to sell from!', ephemeral: true });
+      await interaction.reply({ content: 'You have no inventory to sell from!', flags: MessageFlags.Ephemeral });
       return;
     }
     const itemName = interaction.options.getString('item');
@@ -82,7 +92,7 @@ module.exports = {
       return name === itemName;
     });
     if (invIdx === -1) {
-      await interaction.reply({ content: `You do not have any ${itemName} to sell.`, ephemeral: true });
+      await interaction.reply({ content: `You do not have any ${itemName} to sell.`, flags: MessageFlags.Ephemeral });
       return;
     }
     let item = character.inventory[invIdx];
@@ -93,7 +103,7 @@ module.exports = {
     if (quantity === 'all') quantity = count;
     else quantity = parseInt(quantity, 10);
     if (!quantity || quantity < 1 || quantity > count) {
-      await interaction.reply({ content: `You can only sell between 1 and ${count} of your ${name}.`, ephemeral: true });
+      await interaction.reply({ content: `You can only sell between 1 and ${count} of your ${name}.`, flags: MessageFlags.Ephemeral });
       return;
     }
     // Remove/sell the quantity
@@ -110,7 +120,7 @@ module.exports = {
     await saveCharacter(userId, character);
     await interaction.reply({
       content: `✅ Sold **${name}** x${quantity} for ${goldEarned} Gold! (40% of buy price)`, 
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   }
 };

@@ -1,5 +1,6 @@
-const { SlashCommandBuilder, StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
+const { SlashCommandBuilder, StringSelectMenuBuilder, ActionRowBuilder, MessageFlags } = require('discord.js');
 const { getCharacter, saveCharacter } = require('../characterModel');
+const fightSessionManager = require('../fightSessionManager');
 
 
 module.exports = {
@@ -12,17 +13,25 @@ module.exports = {
         .setRequired(true)
         .addChoices(
           { name: 'House', value: 'house' },
-          { name: 'Mount', value: 'mount' }
+          { name: 'Mount', value: 'mount' },
+          { name: 'Familiar', value: 'familiar' }
         )
     ),
   async execute(interaction) {
+    // Flush fight session if it exists (unified logic)
+    
     const userId = interaction.user.id;
+    await fightSessionManager.flushIfExists(userId);
     const type = interaction.options.getString('type');
     const character = await getCharacter(userId);
     if (!character || !character.collections || !Array.isArray(character.collections[type + 's']) || character.collections[type + 's'].length === 0) {
+      let noneMsg = `You don't own any ${type}s yet!`;
+      if (type === 'familiar') noneMsg = `You don't own any familiars yet!`;
+      else if (type === 'house') noneMsg = `You don't own any houses yet!`;
+      else if (type === 'mount') noneMsg = `You don't own any mounts yet!`;
       await interaction.reply({
-        content: `You don't own any ${type === 'house' ? 'houses' : 'mounts'} yet!`,
-        ephemeral: true
+        content: noneMsg,
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
@@ -33,7 +42,7 @@ module.exports = {
       .setPlaceholder(`Select your active ${type}`)
       .addOptions(
         items.map(item => ({
-          label: item.name,
+          label: item.count && item.count > 1 ? `${item.name} (x${item.count})` : item.name,
           value: item.name,
           description: item.description ? item.description.substring(0, 80) : undefined
         }))
@@ -42,36 +51,40 @@ module.exports = {
     await interaction.reply({
       content: `Choose which ${type} to display on your character sheet:`,
       components: [row],
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   },
   // Handler for select menu
   async handleSelect(interaction) {
+    // Flush fight session if it exists (unified logic)
+    const fightSessionManager = require('../fightSessionManager');
     const userId = interaction.user.id;
+    await fightSessionManager.flushIfExists(userId);
     const [_, type] = interaction.customId.split('_');
     const value = interaction.values[0];
     const character = await getCharacter(userId);
     if (!character || !character.collections || !Array.isArray(character.collections[type + 's'])) {
       await interaction.reply({
         content: `Could not update your ${type}. Please try again.`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
     if (!character.collections[type + 's'].some(item => item.name === value)) {
       await interaction.reply({
         content: `You do not own that ${type}.`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
     if (type === 'house') character.activeHouse = value;
     else if (type === 'mount') character.activeMount = value;
+    else if (type === 'familiar') character.activeFamiliar = value;
     await saveCharacter(userId, character);
     await interaction.update({
       content: `Your active ${type} is now **${value}**!`,
       components: [],
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   }
 };

@@ -1,14 +1,28 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-
-// Loot table extracted from explore.js/fight.js for shop
-// Character file helpers
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getCharacter, saveCharacter } = require('../characterModel');
-
 const { houseTable, mountTable, armorTable, weaponTable, potionTable } = require('./loot');
 const mergeOrAddInventoryItem = require('../mergeOrAddInventoryItem');
 const mergeOrAddCollectionItem = require('../mergeOrAddCollectionItem');
 
-// Houses (scaling size & price)
+// Helper to sum up gold in a character's inventory
+function getUserGold(character, withIdx = false) {
+  let gold = 0;
+  let goldIdx = -1;
+  if (character && Array.isArray(character.inventory)) {
+    character.inventory.forEach((i, idx) => {
+      if (typeof i === 'object') {
+        if (i.name === 'Gold') {
+          gold += i.count || 0;
+          if (withIdx) goldIdx = idx;
+        } else {
+          const m = i.name && i.name.match(/(\d+) Gold/i);
+          if (m) gold += i.amount || parseInt(m[1], 10) || 0;
+        }
+      }
+    });
+  }
+  return withIdx ? { gold, goldIdx } : gold;
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -41,20 +55,7 @@ module.exports = {
     const userId = interaction.user.id;
     
     let character = await getCharacter(userId);
-    // Gold handling: sum both 'Gold' (with count) and 'X Gold' (with amount or name)
-    let gold = 0;
-    if (character && Array.isArray(character.inventory)) {
-      for (const i of character.inventory) {
-        if (typeof i === 'object') {
-          if (i.name === 'Gold') {
-            gold += i.count || 0;
-          } else {
-            const m = i.name && i.name.match(/(\d+) Gold/i);
-            if (m) gold += i.amount || parseInt(m[1], 10) || 0;
-          }
-        }
-      }
-    }
+    let gold = getUserGold(character);
     // Prepare dropdown/select menu
     let choices = [];
     if (category === 'House') {
@@ -104,7 +105,7 @@ module.exports = {
     }
     // Send select menu
     if (choices.length === 0) {
-      await interaction.reply({ content: `There is nothing to buy in the ${category} shop.`, ephemeral: true });
+      await interaction.reply({ content: `There is nothing to buy in the ${category} shop.`, flags: MessageFlags.Ephemeral });
       return;
     }
     // Use global pagination utility
@@ -122,7 +123,7 @@ module.exports = {
     await interaction.reply({
       content,
       components,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   },
 
@@ -137,7 +138,7 @@ module.exports = {
     if (!category) {
       try {
         if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: 'Could not determine shop category. Please try again.', ephemeral: true });
+          await interaction.reply({ content: 'Could not determine shop category. Please try again.', flags: MessageFlags.Ephemeral });
         }
       } catch (e) {
         // Ignore expired interaction errors
@@ -147,21 +148,7 @@ module.exports = {
     const userId = interaction.user.id;
     
     let character = await getCharacter(userId);
-    let gold = 0;
-    let goldIdx = -1;
-    if (character && Array.isArray(character.inventory)) {
-      character.inventory.forEach((i, idx) => {
-        if (typeof i === 'object') {
-          if (i.name === 'Gold') {
-            gold += i.count || 0;
-            goldIdx = idx;
-          } else {
-            const m = i.name && i.name.match(/(\d+) Gold/i);
-            if (m) gold += i.amount || parseInt(m[1], 10) || 0;
-          }
-        }
-      });
-    }
+    let { gold, goldIdx } = getUserGold(character, true);
     // Get selected items
     const selected = interaction.values;
     let purchaseResults = [];
@@ -257,7 +244,7 @@ module.exports = {
         await interaction.update({
           content: purchaseResults.join('\n') + `\nRemaining gold: ${gold} Gold`,
           components: [],
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
       }
     } catch (e) {

@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 
 
 const { getCharacter, saveCharacter } = require('../characterModel');
@@ -76,7 +76,7 @@ module.exports = {
     
     let character = await getCharacter(userId);
     if (!character || !Array.isArray(character.inventory)) {
-      await interaction.reply({ content: 'You have no inventory to use from!', ephemeral: true });
+      await interaction.reply({ content: 'You have no inventory to use from!', flags: MessageFlags.Ephemeral });
       return;
     }
     const itemName = interaction.options.getString('item');
@@ -85,14 +85,14 @@ module.exports = {
       return name === itemName;
     });
     if (invIdx === -1) {
-      await interaction.reply({ content: `You do not have any ${itemName} to use.`, ephemeral: true });
+      await interaction.reply({ content: `You do not have any ${itemName} to use.`, flags: MessageFlags.Ephemeral });
       return;
     }
     let item = character.inventory[invIdx];
     // Usable: must have 'uses' property or be a potion
     const isUsable = (typeof item === 'object' && (item.uses || (item.type && item.type.toLowerCase() === 'potion')));
     if (!isUsable) {
-      await interaction.reply({ content: `${itemName} cannot be used.`, ephemeral: true });
+      await interaction.reply({ content: `${itemName} cannot be used.`, flags: MessageFlags.Ephemeral });
       return;
     }
     // Use logic (decrement uses/count, remove if depleted, apply effects if needed)
@@ -136,6 +136,6 @@ module.exports = {
       usedMsg = `You used **${itemName}**. It is now gone!`;
     }
     await saveCharacter(userId, character);
-    await interaction.reply({ content: `✅ ${usedMsg}${boostMsg}`, ephemeral: true });
+    await interaction.reply({ content: `✅ ${usedMsg}${boostMsg}`, flags: MessageFlags.Ephemeral });
   }
 };

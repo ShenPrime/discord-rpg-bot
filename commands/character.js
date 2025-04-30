@@ -1,12 +1,8 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-
-const { getXpForNextLevel, checkLevelUp, getClassForLevel } = require('../characterUtils');
+const { SlashCommandBuilder } = require('discord.js');
+const { getXpForNextLevel, getClassForLevel } = require('../characterUtils');
 const { getCharacter, saveCharacter } = require('../characterModel');
-
-
-
-
-
+const fightSessionManager = require('../fightSessionManager');
+const { getTotalStats } = require('../characterUtils');
 
 
 module.exports = {
@@ -19,27 +15,15 @@ module.exports = {
         .setRequired(false)
     ),
   async execute(interaction) {
+    // Flush fight session if it exists (unified logic)
     const userId = interaction.user.id;
+    await fightSessionManager.flushIfExists(userId);
     let character = await getCharacter(userId);
 
     if (character) {
-      // Level and XP display
-      const xp = character.xp || 0;
-      const level = character.level || 1;
-      const xpForNext = getXpForNextLevel(level);
-
-      // Level up if necessary (may level up multiple times)
-      const { leveledUp, levelUpMsg } = checkLevelUp(character);
-      if (leveledUp) {
-        await saveCharacter(userId, character);
-        await interaction.reply({
-          content: levelUpMsg,
-  
-        });
-      }
-
       // Always update class in case level/class is out of sync
       character.class = getClassForLevel(character.level);
+      const { totalStats } = getTotalStats(character, require('./loot').lootTable);
       // Class and stat icons
       const classIcons = {
         'Adventurer': '🧑‍🌾',
@@ -71,35 +55,8 @@ module.exports = {
         const icon = statIcons[stat] || '';
         return `${icon} **${stat.charAt(0).toUpperCase() + stat.slice(1)}:** ${val}`;
       }).join('\n');
-      // Calculate total stats (base + equipment + temp)
-      const { lootTable } = require('./loot');
-      const baseStats = { strength: character.stats?.strength ?? 0, defense: character.stats?.defense ?? 0, luck: character.stats?.luck ?? 0 };
-      let eqStats = { strength: 0, defense: 0, luck: 0 };
-      if (character.equipment) {
-        for (const [slot, itemName] of Object.entries(character.equipment)) {
-          const lootItem = lootTable.find(i => i.name === itemName && i.stats);
-          if (lootItem && lootItem.stats) {
-            for (const [stat, val] of Object.entries(lootItem.stats)) {
-              if (statKeys.includes(stat)) {
-                eqStats[stat] = (eqStats[stat] || 0) + val;
-              }
-            }
-          }
-        }
-      }
-      let tempStats = { strength: 0, defense: 0, luck: 0 };
-      if (character.activeEffects && Array.isArray(character.activeEffects)) {
-        for (const effect of character.activeEffects) {
-          if (statKeys.includes(effect.stat)) {
-            tempStats[effect.stat] += effect.boost;
-          }
-        }
-      }
-      let totalStats = { ...baseStats };
-      for (const stat of statKeys) {
-        totalStats[stat] = (totalStats[stat] || 0) + (eqStats[stat] || 0) + (tempStats[stat] || 0);
-      }
-      let totalStatLines = statKeys.map(stat => {
+      // Use getTotalStats result for stat display
+      let totalStatLines = ['strength', 'defense', 'luck'].map(stat => {
         const icon = statIcons[stat] || '';
         return `${icon} **${stat.charAt(0).toUpperCase() + stat.slice(1)}:** ${totalStats[stat]}`;
       }).join('   ');
@@ -171,6 +128,14 @@ module.exports = {
           mountStr = `🐎 **${mount.name}**\n${mount.description || ''}`;
         }
       }
+      // Familiar
+      let familiarStr = '';
+      if (character.collections && character.activeFamiliar) {
+        const familiar = (character.collections.familiars || []).find(f => f.name === character.activeFamiliar);
+        if (familiar) {
+          familiarStr = `🦊 **${familiar.name}**${familiar.rarity ? ` (${familiar.rarity})` : ''}${familiar.count && familiar.count > 1 ? ` x${familiar.count}` : ''}`;
+        }
+      }
       // Embed
       await saveCharacter(userId, character);
       await interaction.reply({
@@ -185,11 +150,11 @@ module.exports = {
             (eqList.length ? `\n\n**Equipment:**\n${eqList.join(' \n')}` : '') +
             (tempEffects.length ? `\n\n**Temporary Effects:**\n${tempEffects.join(' \n')}` : '') +
             (houseStr ? `\n\n${houseStr}` : '') +
-            (mountStr ? `\n\n${mountStr}` : ''),
+            (mountStr ? `\n\n${mountStr}` : '') +
+            (familiarStr ? `\n\n${familiarStr}` : ''),
           color: 0x3498db,
           footer: { text: 'Your RPG Character Sheet' }
         }],
-
       });
     } else {
       // Prompt for name if not provided
@@ -207,10 +172,9 @@ module.exports = {
         level: 1,
         xp: 0,
         stats: {
-          strength: 2,
-          defense: 2,
-
-          luck: 2
+          strength: 1,
+          defense: 0,
+          luck: 0
         }
       };
       await saveCharacter(userId, character);
